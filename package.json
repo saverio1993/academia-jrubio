@@ -1,0 +1,26 @@
+{
+  "name": "academia-jrubio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Academia J Rubio — Plataforma SaaS de soporte técnico móvil",
+  "packageManager": "pnpm@9.12.0",
+  "engines": { "node": ">=20.11.0" },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "pnpm --filter @academia/db generate",
+    "db:migrate": "pnpm --filter @academia/db migrate",
+    "db:studio": "pnpm --filter @academia/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.7.0",
+    "@types/node": "^22.10.0"
+  }
+}
