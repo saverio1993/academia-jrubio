@@ -150,20 +150,25 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
                   return (
                     <div key={folderKey}>
                       {/* Folder row */}
-                      <button
-                        onClick={() => setOpenFolders(t(openFolders, folderKey))}
-                        onContextMenu={(e) =>
-                          openMenu(e, { kind: 'folder', folderPath, folderLabel: folder.name, fileCount: folderFiles })
-                        }
-                        className="w-full flex items-center justify-between pl-9 pr-4 py-2 hover:bg-white/[0.03] transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center pl-9 pr-4 py-2 hover:bg-white/[0.03] group">
+                        <button
+                          onClick={() => setOpenFolders(t(openFolders, folderKey))}
+                          onContextMenu={(e) =>
+                            openMenu(e, { kind: 'folder', folderPath, folderLabel: folder.name, fileCount: folderFiles })
+                          }
+                          className="flex-1 flex items-center gap-2 text-left min-w-0"
+                        >
                           <span className="text-[var(--color-muted)] text-xs w-3">{folderOpen ? '▾' : '▸'}</span>
                           <span>📁</span>
-                          <span className="text-sm">{folder.name}</span>
-                        </div>
-                        <span className="text-xs text-[var(--color-muted)]">{folderFiles} archivos</span>
-                      </button>
+                          <span className="text-sm truncate">{folder.name}</span>
+                          <span className="text-xs text-[var(--color-muted)] ml-1">({folderFiles})</span>
+                        </button>
+                        {/* Botón ZIP de carpeta a la derecha, siempre visible */}
+                        <DownloadFolderButton
+                          folderPath={folderPath}
+                          label={`⬇ ZIP`}
+                        />
+                      </div>
 
                       {folderOpen && (
                         <div>
@@ -175,25 +180,30 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
                             return (
                               <div key={modelKey}>
                                 {/* Model row */}
-                                <button
-                                  onClick={() => setOpenModels(t(openModels, modelKey))}
-                                  onContextMenu={(e) =>
-                                    openMenu(e, {
-                                      kind: 'model',
-                                      folderPath: modelPath,
-                                      folderLabel: modelNode.name,
-                                      fileCount: modelNode.files.length,
-                                    })
-                                  }
-                                  className="w-full flex items-center justify-between pl-14 pr-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left"
-                                >
-                                  <div className="flex items-center gap-2">
+                                <div className="flex items-center pl-14 pr-4 py-1.5 hover:bg-white/[0.03] group">
+                                  <button
+                                    onClick={() => setOpenModels(t(openModels, modelKey))}
+                                    onContextMenu={(e) =>
+                                      openMenu(e, {
+                                        kind: 'model',
+                                        folderPath: modelPath,
+                                        folderLabel: modelNode.name,
+                                        fileCount: modelNode.files.length,
+                                      })
+                                    }
+                                    className="flex-1 flex items-center gap-2 text-left min-w-0"
+                                  >
                                     <span className="text-[var(--color-muted)] text-xs w-3">{modelOpen ? '▾' : '▸'}</span>
                                     <span className="text-sm">📱</span>
-                                    <span className="text-sm text-[var(--color-fg)]">{modelNode.name}</span>
-                                  </div>
-                                  <span className="text-xs text-[var(--color-muted)]">{modelNode.files.length}</span>
-                                </button>
+                                    <span className="text-sm text-[var(--color-fg)] truncate">{modelNode.name}</span>
+                                    <span className="text-xs text-[var(--color-muted)] ml-1">({modelNode.files.length})</span>
+                                  </button>
+                                  {/* Botón ZIP a la derecha, siempre visible */}
+                                  <DownloadFolderButton
+                                    folderPath={modelPath}
+                                    label={`⬇ ZIP`}
+                                  />
+                                </div>
 
                                 {modelOpen && (
                                   <div className="bg-black/20">
@@ -241,12 +251,6 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
                                               {showAll.has(modelKey) ? '▲ Ver menos' : `▼ Ver ${modelNode.files.length - 20} más`}
                                             </button>
                                           )}
-                                          <div className="pl-20 pr-4 py-1.5">
-                                            <DownloadFolderButton
-                                              folderPath={modelPath}
-                                              label={`📦 Descargar todo ${modelNode.name} (${modelNode.files.length})`}
-                                            />
-                                          </div>
                                         </>
                                       );
                                     })()}
@@ -255,12 +259,6 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
                               </div>
                             );
                           })}
-                          <div className="pl-9 pr-4 py-1.5 bg-white/[0.02]">
-                            <DownloadFolderButton
-                              folderPath={folderPath}
-                              label={`📦 Descargar carpeta ${folder.name} (${folderFiles})`}
-                            />
-                          </div>
                         </div>
                       )}
                     </div>
