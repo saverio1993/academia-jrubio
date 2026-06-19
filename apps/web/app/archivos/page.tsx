@@ -63,7 +63,7 @@ export default async function ArchivosPage({
     <main className="min-h-screen px-6 py-12 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold">Biblioteca de Archivos</h1>
+          <h1 className="text-3xl font-bold">📚 Biblioteca de Archivos</h1>
           <p className="text-sm text-[var(--color-muted)] mt-1">
             {files.length} archivo(s) · {!hasSub && <span className="text-[var(--color-accent)]">Premium requiere suscripción</span>}
           </p>

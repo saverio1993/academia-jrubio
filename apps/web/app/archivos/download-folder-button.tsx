@@ -3,37 +3,38 @@
 import { useState } from 'react';
 import { downloadFolderZip } from './download-folder-action';
 
-export function DownloadFolderButton({ folderPath, label }: { folderPath: string; label: string }) {
+export function DownloadFolderButton({
+  folderPath,
+  label,
+  asMenuItem,
+}: {
+  folderPath: string;
+  label: string;
+  asMenuItem?: boolean;
+}) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleDownload() {
     setLoading(true);
-    setError(null);
     try {
       const { url } = await downloadFolderZip(folderPath);
       window.location.href = url;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error desconocido';
-      if (msg === 'NOT_AUTHENTICATED') {
-        window.location.href = '/signin';
-      } else if (msg === 'NO_SUBSCRIPTION') {
-        window.location.href = '/planes';
-      } else {
-        setError(msg);
-      }
+      const msg = e instanceof Error ? e.message : 'Error';
+      if (msg === 'NOT_AUTHENTICATED') window.location.href = '/signin';
+      else if (msg === 'NO_SUBSCRIPTION') window.location.href = '/planes';
       setLoading(false);
     }
   }
 
-  if (error) {
+  if (asMenuItem) {
     return (
       <button
         onClick={handleDownload}
-        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20"
-        title={error}
+        disabled={loading}
+        className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
       >
-        ⚠ Reintentar ZIP
+        {label}
       </button>
     );
   }
@@ -42,16 +43,9 @@ export function DownloadFolderButton({ folderPath, label }: { folderPath: string
     <button
       onClick={handleDownload}
       disabled={loading}
-      className="rounded-lg border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 disabled:opacity-50 flex items-center gap-1.5"
+      className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] disabled:opacity-50"
     >
-      {loading ? (
-        <>
-          <span className="inline-block animate-spin">⟳</span>
-          Comprimiendo…
-        </>
-      ) : (
-        <>📦 {label}</>
-      )}
+      {loading ? '⟳ Preparando…' : label}
     </button>
   );
 }
