@@ -72,10 +72,11 @@ export function AIChat() {
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error desconocido';
       const errorMsg: Message = {
         id: `e-${Date.now()}`,
         role: 'assistant',
-        content: 'Error al buscar. Intenta de nuevo.',
+        content: `❌ ${msg}`,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -89,10 +90,10 @@ export function AIChat() {
       {/* Header */}
       <div className="border-b border-[var(--color-border)] px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
+          <div className="w-2 h-2 rounded-full bg-green-500" />
           <h3 className="font-semibold text-sm">Asistente de búsqueda con IA</h3>
         </div>
-        <span className="text-xs text-[var(--color-muted)]">Próximamente</span>
+        <span className="text-xs text-green-400">En línea</span>
       </div>
 
       {/* Messages */}

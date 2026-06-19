@@ -1,13 +1,6 @@
-// Wrapper seguro de Minimax API
-// Restricciones:
-// - Solo lectura
-// - Rate limit por usuario
-// - Timeout
-// - Validación de output
-
-const MINIMAX_ENDPOINT = process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1';
-const MINIMAX_MODEL = process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed';
-const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
+// Wrapper de IA. Lee config de la BD (AIConfig) y usa env vars como fallback.
+// Permite gestionar token/modelo/prompt desde el panel admin sin redeploy.
+import { prisma } from '@academia/db';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -16,12 +9,24 @@ interface ChatMessage {
 
 interface ChatOptions {
   query: string;
-  context?: string; // contexto adicional (ej: lista resumida de archivos)
+  context?: string;
   history?: ChatMessage[];
   userId: string;
 }
 
-const SYSTEM_PROMPT = `Eres el asistente de búsqueda de la "Academia J Rubio", una plataforma para técnicos de teléfonos móviles.
+interface AIConfig {
+  provider: string;
+  apiKey: string;
+  endpoint: string;
+  model: string;
+  systemPrompt: string;
+  enabled: boolean;
+  maxTokens: number;
+  temperature: number;
+  rateLimit: number;
+}
+
+const DEFAULT_SYSTEM_PROMPT = `Eres el asistente de búsqueda de la "Academia J Rubio", una plataforma para técnicos de teléfonos móviles.
 
 TU ROL EXCLUSIVO:
 - Ayudar a los usuarios a BUSCAR archivos en la biblioteca
@@ -29,7 +34,7 @@ TU ROL EXCLUSIVO:
 - Sugerir archivos relevantes según lo que el usuario necesita
 
 REGLAS ESTRICTAS (NO NEGOCIABLES):
-1. SOLO puedes recomendar archivos usando la herramienta searchFiles
+1. SOLO puedes recomendar archivos usando la información del catálogo que se te pasa
 2. NO tienes acceso a ninguna función de administración
 3. NO puedes crear, eliminar, modificar ni editar archivos
 4. NO puedes acceder a datos de otros usuarios
@@ -38,22 +43,69 @@ REGLAS ESTRICTAS (NO NEGOCIABLES):
 7. Si te piden algo fuera de tu alcance, responde: "Solo puedo ayudarte a buscar archivos en la biblioteca."
 8. Si no encuentras archivos relevantes, dilo honestamente
 
-IDIOMA: Responde en español, tono amigable y profesional, breve y al grano.
-FORMATO: Cuando sugieras archivos, incluye el título y marca/modelo.`;
+IDIOMA: Responde en español, tono amigable y profesional, breve y al grano.`;
 
-const MAX_HISTORY = 10; // máximo de mensajes en el historial
-const TIMEOUT_MS = 30_000; // 30 segundos
+const TIMEOUT_MS = 30_000;
 
-export async function callMinimax({ query, context, history, userId }: ChatOptions): Promise<string> {
-  if (!MINIMAX_API_KEY) {
-    throw new Error('IA no configurada: falta MINIMAX_API_KEY');
+// Cache de config (5 segundos) para no pegar a la BD en cada request
+let cachedConfig: { value: AIConfig; expires: number } | null = null;
+async function getAIConfig(): Promise<AIConfig | null> {
+  const now = Date.now();
+  if (cachedConfig && cachedConfig.expires > now) {
+    return cachedConfig.value;
+  }
+
+  try {
+    const row = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
+    if (row) {
+      // Si no tiene apiKey en BD, usar env var
+      const config: AIConfig = {
+        provider: row.provider,
+        apiKey: row.apiKey || process.env.MINIMAX_API_KEY || '',
+        endpoint: row.endpoint || process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1',
+        model: row.model || process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed',
+        systemPrompt: row.systemPrompt || DEFAULT_SYSTEM_PROMPT,
+        enabled: row.enabled,
+        maxTokens: row.maxTokens,
+        temperature: row.temperature,
+        rateLimit: row.rateLimit,
+      };
+      cachedConfig = { value: config, expires: now + 5000 };
+      return config;
+    }
+  } catch (e) {
+    // Si la tabla no existe aún, usar env vars
+    console.warn('[ai] AIConfig table not available, using env vars');
+  }
+
+  // Fallback a env vars
+  if (!process.env.MINIMAX_API_KEY) return null;
+  return {
+    provider: 'minimax',
+    apiKey: process.env.MINIMAX_API_KEY,
+    endpoint: process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1',
+    model: process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed',
+    systemPrompt: DEFAULT_SYSTEM_PROMPT,
+    enabled: true,
+    maxTokens: 500,
+    temperature: 0.3,
+    rateLimit: 30,
+  };
+}
+
+export async function callAI({ query, context, history, userId }: ChatOptions): Promise<string> {
+  const config = await getAIConfig();
+  if (!config || !config.apiKey) {
+    throw new Error('IA no configurada. Ve a Admin > Asistente de IA y configura el token.');
+  }
+  if (!config.enabled) {
+    throw new Error('El asistente de IA está deshabilitado. Actívalo en Admin > Asistente de IA.');
   }
 
   const messages: ChatMessage[] = [
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: config.systemPrompt },
   ];
 
-  // Añadir contexto como system message (NO en user message, para que la IA no lo confunda con instrucciones)
   if (context) {
     messages.push({
       role: 'system',
@@ -61,48 +113,45 @@ export async function callMinimax({ query, context, history, userId }: ChatOptio
     });
   }
 
-  // Historial limitado
   if (history && history.length > 0) {
-    const recent = history.slice(-MAX_HISTORY);
+    const recent = history.slice(-10);
     messages.push(...recent);
   }
 
-  // Query del usuario
   messages.push({ role: 'user', content: query });
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const res = await fetch(MINIMAX_ENDPOINT, {
+    const res = await fetch(config.endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${MINIMAX_API_KEY}`,
+        Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: MINIMAX_MODEL,
+        model: config.model,
         messages,
-        max_tokens: 500,
-        temperature: 0.3,
+        max_tokens: config.maxTokens,
+        temperature: config.temperature,
       }),
       signal: controller.signal,
     });
 
     if (!res.ok) {
       const text = await res.text();
-      console.error('[Minimax error]', res.status, text.substring(0, 300));
-      throw new Error(`Minimax API ${res.status}: ${text.substring(0, 200)}`);
+      console.error('[AI error]', res.status, text.substring(0, 500));
+      throw new Error(`API ${res.status}: ${text.substring(0, 150)}`);
     }
 
     const data = await res.json();
     const reply = data?.choices?.[0]?.message?.content;
     if (!reply) {
-      console.error('[Minimax no reply]', JSON.stringify(data).substring(0, 500));
-      throw new Error('Minimax no devolvió respuesta');
+      console.error('[AI no reply]', JSON.stringify(data).substring(0, 500));
+      throw new Error('La API no devolvió respuesta válida');
     }
 
-    // Sanitizar output: no debe contener URLs de admin ni rutas internas
     return sanitizeOutput(reply);
   } finally {
     clearTimeout(timeoutId);
@@ -110,32 +159,29 @@ export async function callMinimax({ query, context, history, userId }: ChatOptio
 }
 
 function sanitizeOutput(text: string): string {
-  // Quitar cualquier URL que no sea de Nextcloud público
   let clean = text;
-  // Quitar menciones a /admin, /api/, /signin
   clean = clean.replace(/(\/admin[^\s]*)/gi, '[redactado]');
   clean = clean.replace(/(\/api\/[^\s]*)/gi, '[redactado]');
-  // Quitar posibles tokens o keys que la IA pueda alucinar
+  clean = clean.replace(/(sk-[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(sk_[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(Bearer\s+[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   return clean;
 }
 
-// Rate limit por usuario (en memoria, simple)
+// Rate limit
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_MAX = 30; // requests
-const RATE_LIMIT_WINDOW = 60_000; // 1 minuto
-
-export function checkRateLimit(userId: string): boolean {
+export function checkRateLimit(userId: string, maxPerMin = 30): boolean {
   const now = Date.now();
   const entry = rateLimit.get(userId);
   if (!entry || entry.resetAt < now) {
-    rateLimit.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    rateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
     return true;
   }
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return false;
-  }
+  if (entry.count >= maxPerMin) return false;
   entry.count++;
   return true;
+}
+
+export function invalidateAICache() {
+  cachedConfig = null;
 }

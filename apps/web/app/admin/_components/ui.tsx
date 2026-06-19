@@ -125,3 +125,66 @@ export const btnApprove =
   'inline-flex items-center justify-center gap-2 rounded-lg border border-green-500/30 px-3 py-1.5 text-xs font-medium text-green-400 transition-colors hover:bg-green-500/10';
 export const inputCls =
   'w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm outline-none transition-colors focus:border-[var(--color-accent)]';
+
+/* ---------- Field (input/select/textarea wrapper) ---------- */
+export function Field({
+  name,
+  label,
+  type = 'text',
+  defaultValue,
+  placeholder,
+  required = false,
+  min,
+  max,
+  step,
+  rows = 3,
+  options,
+}: {
+  name: string;
+  label: string;
+  type?: 'text' | 'password' | 'number' | 'email' | 'url' | 'select' | 'textarea';
+  defaultValue?: string;
+  placeholder?: string;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  rows?: number;
+  options?: Array<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs text-[var(--color-muted)]">{label}</span>
+      {type === 'select' ? (
+        <select name={name} defaultValue={defaultValue} className={inputCls} required={required}>
+          {options?.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      ) : type === 'textarea' ? (
+        <textarea
+          name={name}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          required={required}
+          rows={rows}
+          className={inputCls}
+        />
+      ) : (
+        <input
+          name={name}
+          type={type}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          required={required}
+          min={min}
+          max={max}
+          step={step}
+          className={inputCls}
+        />
+      )}
+    </label>
+  );
+}

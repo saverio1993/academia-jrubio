@@ -11,6 +11,7 @@ const LINKS = [
   { href: '/admin/planes', label: 'Planes' },
   { href: '/admin/archivos', label: 'Archivos' },
   { href: '/admin/cursos', label: 'Cursos' },
+  { href: '/admin/ia', label: 'Asistente de IA' },
 ];
 
 export function Sidebar() {
