@@ -44,7 +44,7 @@ export async function updateAIConfig(formData: FormData) {
   });
 
   if (!parsed.success) {
-    return { error: parsed.error.errors.map((e) => e.message).join(', ') };
+    throw new Error(parsed.error.errors.map((e) => e.message).join(', '));
   }
 
   await prisma.aIConfig.upsert({
@@ -55,7 +55,6 @@ export async function updateAIConfig(formData: FormData) {
 
   invalidateAICache();
   revalidatePath('/admin/ia');
-  return { success: true };
 }
 
 export async function testAIConnection(formData: FormData) {
@@ -66,35 +65,33 @@ export async function testAIConnection(formData: FormData) {
   const model = formData.get('model') as string;
 
   if (!apiKey || !endpoint || !model) {
-    return { error: 'Completa endpoint, modelo y API key' };
+    throw new Error('Completa endpoint, modelo y API key');
   }
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: 'Responde solo con OK' }],
-        max_tokens: 10,
-      }),
-    });
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'Responde solo con OK' }],
+      max_tokens: 10,
+    }),
+  });
 
-    if (!res.ok) {
-      const text = await res.text();
-      return { error: `${res.status}: ${text.substring(0, 200)}` };
-    }
-
-    const data = await res.json();
-    if (!data?.choices?.[0]?.message?.content) {
-      return { error: 'API respondió pero sin contenido válido' };
-    }
-
-    return { success: true, response: data.choices[0].message.content };
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : 'Error desconocido' };
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`${res.status}: ${text.substring(0, 200)}`);
   }
+
+  const data = await res.json();
+  if (!data?.choices?.[0]?.message?.content) {
+    throw new Error('API respondió pero sin contenido válido');
+  }
+
+  // Redirigir con un query param de éxito
+  revalidatePath('/admin/ia');
+  return data.choices[0].message.content;
 }

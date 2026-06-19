@@ -14,7 +14,10 @@ export default async function IAPage() {
   let config = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
   if (!config) {
     config = await prisma.aIConfig.create({
-      data: { id: 'default' },
+      data: {
+        id: 'default',
+        systemPrompt: 'Eres el asistente de búsqueda de la Academia J Rubio. SOLO puedes ayudar a buscar archivos en la biblioteca. NO tienes acceso a admin ni a funciones de modificación. Responde en español, breve y amigable.',
+      },
     });
   }
 
@@ -144,6 +147,9 @@ export default async function IAPage() {
               <button className="w-full rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20">
                 Probar ahora
               </button>
+              <p className="text-xs text-[var(--color-muted)]">
+                Si la API responde correctamente, verás el resultado en la consola del navegador.
+              </p>
             </form>
           </Card>
 

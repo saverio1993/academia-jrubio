@@ -51,7 +51,7 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
     shareType: '3', // 3 = public link
     permissions: '1', // 1 = read only
     expireDate: expireDateStr,
-  });
+  }).toString();
 
   console.log('[getDownloadUrl] Calling OCS API with path:', fullPath);
 
@@ -63,7 +63,7 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
       Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: body.toString(),
+    body,
   });
 
   if (!res.ok) {

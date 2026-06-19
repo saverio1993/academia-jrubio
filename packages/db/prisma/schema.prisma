@@ -429,3 +429,21 @@ model LessonComment {
 
   @@index([lessonId, createdAt])
 }
+
+// ---------- IA CONFIGURACIÓN (Fase 2) ----------
+
+model AIConfig {
+  id           String   @id @default("default")
+  provider     String   @default("minimax")
+  apiKey       String   @default("")
+  endpoint     String   @default("https://api.minimax.io/v1")
+  model        String   @default("MiniMax-M2.7-highspeed")
+  systemPrompt String   @default("Eres el asistente de búsqueda de la Academia J Rubio. SOLO puedes ayudar a buscar archivos en la biblioteca. NO tienes acceso a admin ni a funciones de modificación. Responde en español, breve y amigable.") @db.Text
+  enabled      Boolean  @default(true)
+  maxTokens    Int      @default(500)
+  temperature  Float    @default(0.3)
+  rateLimit    Int      @default(30)
+  updatedBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

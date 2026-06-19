@@ -35,7 +35,7 @@ async function createNextcloudFolderShare(folderPath: string): Promise<Nextcloud
     shareType: '3', // 3 = public link
     permissions: '1', // 1 = read only
     expireDate: expireDateStr,
-  });
+  }).toString();
 
   const res = await fetch(ocsUrl, {
     method: 'POST',
@@ -45,7 +45,7 @@ async function createNextcloudFolderShare(folderPath: string): Promise<Nextcloud
       Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: body.toString(),
+    body,
   });
 
   if (!res.ok) {
