@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { DownloadButton } from './download-button';
+import { DownloadFolderButton } from './download-folder-button';
 import { bytes, dateShort } from '@/lib/format';
 
 interface FileItem {
@@ -66,9 +67,11 @@ function buildTree(files: FileItem[]): Tree[] {
 
 export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub: boolean; userId: string }) {
   const tree = useMemo(() => buildTree(files), [files]);
-  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(() => new Set([tree[0]?.brand].filter(Boolean)));
+  // Expandir todas las marcas por defecto
+  const [expandedBrands, setExpandedBrands] = useState<Set<string>>(() => new Set(tree.map((t) => t.brand)));
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [expandedModels, setExpandedModels] = useState<Set<string>>(new Set());
+  const [showAll, setShowAll] = useState<Set<string>>(new Set()); // modelos con "ver más"
 
   const toggleBrand = (b: string) => {
     setExpandedBrands(prev => {
@@ -159,40 +162,74 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
 
                                 {isModelOpen && (
                                   <div className="bg-black/20">
-                                    {modelNode.files.map((f) => {
-                                      const blocked = f.isPremium && !hasSub;
+                                    {(() => {
+                                      const limit = showAll.has(modelKey) ? modelNode.files.length : 20;
+                                      const visibleFiles = modelNode.files.slice(0, limit);
                                       return (
-                                        <div
-                                          key={f.id}
-                                          className={`flex items-center justify-between gap-4 pl-24 pr-5 py-2.5 hover:bg-white/[0.03] ${blocked ? 'opacity-60' : ''}`}
-                                        >
-                                          <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <p className="text-sm text-[var(--color-fg)] truncate">{f.title}</p>
-                                              {f.isPremium && (
-                                                <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
-                                                  Premium
-                                                </span>
-                                              )}
-                                              <span className="shrink-0 text-[10px] text-[var(--color-muted)] rounded bg-white/5 px-1.5 py-0.5">
-                                                {f.category}
-                                              </span>
+                                        <>
+                                          {visibleFiles.map((f) => {
+                                            const blocked = f.isPremium && !hasSub;
+                                            return (
+                                              <div
+                                                key={f.id}
+                                                className={`flex items-center justify-between gap-4 pl-24 pr-5 py-2.5 hover:bg-white/[0.03] ${blocked ? 'opacity-60' : ''}`}
+                                              >
+                                                <div className="min-w-0 flex-1">
+                                                  <div className="flex items-center gap-2 flex-wrap">
+                                                    <p className="text-sm text-[var(--color-fg)] truncate">{f.title}</p>
+                                                    {f.isPremium && (
+                                                      <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-accent)]">
+                                                        Premium
+                                                      </span>
+                                                    )}
+                                                    <span className="shrink-0 text-[10px] text-[var(--color-muted)] rounded bg-white/5 px-1.5 py-0.5">
+                                                      {f.category}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                                <div className="shrink-0 flex items-center gap-3">
+                                                  <span className="text-xs text-[var(--color-muted)] hidden sm:inline">
+                                                    {f.sizeBytes ? bytes(f.sizeBytes) : ''}
+                                                  </span>
+                                                  <DownloadButton
+                                                    fileId={f.id}
+                                                    storageKey={f.storageKey}
+                                                    blocked={blocked}
+                                                    userId={userId}
+                                                  />
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                          {modelNode.files.length > 20 && (
+                                            <div className="pl-24 pr-5 py-2">
+                                              <button
+                                                onClick={() => {
+                                                  setShowAll((prev) => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(modelKey)) next.delete(modelKey);
+                                                    else next.add(modelKey);
+                                                    return next;
+                                                  });
+                                                }}
+                                                className="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+                                              >
+                                                {showAll.has(modelKey)
+                                                  ? `Ver menos ▲`
+                                                  : `Ver ${modelNode.files.length - 20} archivos más ▼`}
+                                              </button>
                                             </div>
-                                          </div>
-                                          <div className="shrink-0 flex items-center gap-3">
-                                            <span className="text-xs text-[var(--color-muted)] hidden sm:inline">
-                                              {f.sizeBytes ? bytes(f.sizeBytes) : ''}
-                                            </span>
-                                            <DownloadButton
-                                              fileId={f.id}
-                                              storageKey={f.storageKey}
-                                              blocked={blocked}
-                                              userId={userId}
+                                          )}
+                                          {/* Botón de descarga ZIP de toda la carpeta del modelo */}
+                                          <div className="pl-24 pr-5 py-2 border-t border-white/5">
+                                            <DownloadFolderButton
+                                              folderPath={`/AcademiaJRubio/${folder.name}${modelNode.name !== folder.name ? '/' + modelNode.name : ''}`}
+                                              label={`Descargar carpeta completa (${modelNode.files.length} archivos)`}
                                             />
                                           </div>
-                                        </div>
+                                        </>
                                       );
-                                    })}
+                                    })()}
                                   </div>
                                 )}
                               </div>

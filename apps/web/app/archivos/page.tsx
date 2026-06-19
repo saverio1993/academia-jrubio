@@ -45,7 +45,7 @@ export default async function ArchivosPage({
       { model: 'asc' },
       { title: 'asc' },
     ],
-    take: 500,
+    take: 1500, // Subido a 1500 para mostrar todo
   });
 
   const allBrands = await prisma.fileItem.findMany({
