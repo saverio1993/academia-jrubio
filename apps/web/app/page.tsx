@@ -37,27 +37,7 @@ export default async function HomePage() {
       <div className="glow g2" />
       <div className="glow g3" />
 
-      {logged && <TopNav />}
-
-      <nav>
-        <div className="navin">
-          <div className="logo">
-            <span className="dot">JR</span> Academia <span style={{ color: 'var(--lp-accent)' }}>J Rubio</span>
-          </div>
-          <div className="navlinks">
-            <a href="#beneficios">Beneficios</a>
-            <a href="#planes">Planes</a>
-            <Link href="/academia">Academia</Link>
-            <a href="#opiniones">Opiniones</a>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            {!logged && (
-              <Link className="btn btn-ghost" href="/signin">Iniciar sesión</Link>
-            )}
-            <Link className="btn btn-primary" href="/planes">Suscríbete</Link>
-          </div>
-        </div>
-      </nav>
+      <TopNav />
 
       <header className="hero wrap">
         <div className="reveal in">
