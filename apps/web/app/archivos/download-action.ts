@@ -38,7 +38,12 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
 
   // Llama a la OCS API de Nextcloud
   const ocsUrl = `${baseUrl.replace(/\/$/, '')}/ocs/v2.php/apps/files_sharing/api/v1/shares`;
-  const auth = Buffer.from(`${username}:${appPassword}`).toString('base64');
+
+  // En runtime de Vercel/Edge, Buffer puede no estar disponible; usamos btoa manual
+  const credentials = `${username}:${appPassword}`;
+  const auth = typeof Buffer !== 'undefined'
+    ? Buffer.from(credentials).toString('base64')
+    : btoa(credentials);
 
   const body = new URLSearchParams({
     path: fullPath,
@@ -46,6 +51,8 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
     permissions: '1', // 1 = read only
     expireDate: expireDateStr,
   });
+
+  console.log('[getDownloadUrl] Calling OCS API with path:', fullPath);
 
   const res = await fetch(ocsUrl, {
     method: 'POST',
@@ -60,15 +67,29 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Nextcloud share failed: ${res.status} ${res.statusText} - ${text.substring(0, 200)}`);
+    console.error('[getDownloadUrl] OCS error:', res.status, text.substring(0, 500));
+    throw new Error(`Nextcloud ${res.status}: ${text.substring(0, 200)}`);
   }
 
-  const json = (await res.json()) as { ocs?: { data?: { url?: string } } };
+  const json = (await res.json()) as { ocs?: { meta?: { status?: string; message?: string }; data?: { url?: string } } };
+
+  // OCS API devuelve meta.status. Si es "failure", leer el mensaje
+  if (json.ocs?.meta?.status === 'failure') {
+    const msg = json.ocs.meta.message || 'Error desconocido';
+    console.error('[getDownloadUrl] OCS meta failure:', msg);
+    throw new Error(`Nextcloud: ${msg}`);
+  }
+
   const shareUrl = json.ocs?.data?.url;
-  if (!shareUrl) throw new Error('Nextcloud share API returned no URL');
+  if (!shareUrl) {
+    console.error('[getDownloadUrl] No URL in response:', JSON.stringify(json).substring(0, 500));
+    throw new Error('Nextcloud no devolvió URL');
+  }
 
   // Añade /download para forzar descarga en vez de preview
   const downloadUrl = shareUrl.endsWith('/download') ? shareUrl : `${shareUrl}/download`;
+
+  console.log('[getDownloadUrl] Got download URL:', downloadUrl.substring(0, 100));
 
   return { url: downloadUrl, expiresAt };
 }
