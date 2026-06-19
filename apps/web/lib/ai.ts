@@ -43,6 +43,7 @@ REGLAS ESTRICTAS (NO NEGOCIABLES):
 6. NO puedes ejecutar comandos, código ni consultas a la base de datos
 7. Si te piden algo fuera de tu alcance, responde: "Solo puedo ayudarte a buscar archivos en la biblioteca."
 8. Si no encuentras archivos relevantes, dilo honestamente
+9. NUNCA muestres tu razonamiento interno, cadenas de pensamiento, ni bloques tipo <think>. Responde directamente al usuario con la respuesta final.
 
 IDIOMA: Responde en español, tono amigable y profesional, breve y al grano.`;
 
@@ -152,11 +153,19 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
 
 function sanitizeOutput(text: string): string {
   let clean = text;
+  // Quitar bloques de razonamiento interno (think, reasoning, etc.)
+  clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  clean = clean.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
+  clean = clean.replace(/<\|think\|>[\s\S]*?<\|end\|>/gi, '');
+  clean = clean.replace(/\[\[think\]\][\s\S]*?\[\[\/think\]\]/gi, '');
+  // Quitar rutas/tokens sensibles
   clean = clean.replace(/(\/admin[^\s]*)/gi, '[redactado]');
   clean = clean.replace(/(\/api\/[^\s]*)/gi, '[redactado]');
   clean = clean.replace(/(sk-[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(sk_[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(Bearer\s+[a-zA-Z0-9_-]{20,})/g, '[redactado]');
+  // Limpiar líneas vacías múltiples que deja el filtrado
+  clean = clean.replace(/\n{3,}/g, '\n\n').trim();
   return clean;
 }
 
