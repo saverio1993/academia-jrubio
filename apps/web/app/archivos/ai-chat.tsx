@@ -16,7 +16,7 @@ export function AIChat() {
     {
       id: 'welcome',
       role: 'system',
-      content: '¡Hola! Soy el asistente de la Academia. Pronto podré buscar archivos en la biblioteca por ti. Por ahora puedes escribir tu consulta y te mostraré los resultados más relevantes.',
+      content: '¡Hola! Soy el asistente de la Academia. Puedes buscar cualquier archivo más fácil escribiéndolo aquí.',
       timestamp: new Date(),
     },
   ]);
@@ -78,7 +78,7 @@ export function AIChat() {
       <div className="border-b border-[var(--color-border)] px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-[var(--color-accent)] animate-pulse" />
-          <h3 className="font-semibold text-sm">Asistente IA</h3>
+          <h3 className="font-semibold text-sm">Asistente de búsqueda con IA</h3>
         </div>
         <span className="text-xs text-[var(--color-muted)]">Próximamente</span>
       </div>
@@ -136,7 +136,7 @@ export function AIChat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Pregunta algo... ej: 'firmware Samsung A55'"
+          placeholder="OK, pregunta algo…"
           className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-sm focus:outline-none focus:border-[var(--color-accent)]"
           disabled={loading}
         />
