@@ -80,12 +80,12 @@ export default async function PlanesPage() {
           <h2 style={{ fontSize: 'clamp(34px,5vw,52px)', fontWeight: 900 }}>
             Planes para <span className="grad">técnicos profesionales</span>
           </h2>
-          <p>Acceso completo a la biblioteca, comunidad privada de Telegram y soporte directo. Cancela cuando quieras.</p>
+          <p>Acceso completo a la biblioteca y, según tu plan, comunidad privada de Telegram y soporte directo con el instructor. Cancela cuando quieras.</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 20, alignItems: 'start' }}>
           {plans.map((plan) => {
-            const pop = plan.slug === 'premium' || plan.slug === 'anual';
+            const pop = plan.slug === 'pro';
             const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
             return (
               <div key={plan.id} className={`plan${pop ? ' pop' : ''}`}>

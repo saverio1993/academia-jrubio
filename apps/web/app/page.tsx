@@ -125,38 +125,32 @@ export default async function HomePage() {
           <h2>Elige tu acceso</h2>
           <p>Cancela cuando quieras. Todos los planes incluyen la comunidad de Telegram.</p>
         </div>
-        <div className="plans">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 20, maxWidth: 760, margin: '0 auto', alignItems: 'start' }}>
           <div className="plan reveal">
-            <div className="pn">Mensual</div>
-            <div className="price">$9.99<span>/mes</span></div>
+            <div className="pn">Biblioteca</div>
+            <div className="price">$25<span>/año</span></div>
+            <p className="pdesc">Acceso a toda la nube de archivos.</p>
             <ul>
-              <li><span className="ck">✓</span> Biblioteca completa de archivos</li>
-              <li><span className="ck">✓</span> Comunidad privada en Telegram</li>
-              <li><span className="ck">✓</span> Soporte con IA</li>
+              <li><span className="ck">✓</span> Acceso completo a la biblioteca de archivos</li>
+              <li><span className="ck">✓</span> Firmware, drivers, herramientas y tutoriales</li>
+              <li><span className="ck">✓</span> Descargas ilimitadas</li>
+              <li><span className="ck">✓</span> Buscador avanzado por marca y modelo</li>
             </ul>
             <Link className="btn btn-ghost" href="/planes">Empezar</Link>
           </div>
           <div className="plan pop reveal">
             <span className="badge">Más popular</span>
-            <div className="pn">Anual</div>
-            <div className="price">$99.90<span>/año</span></div>
+            <div className="pn">Pro</div>
+            <div className="price">$50<span>/año</span></div>
+            <p className="pdesc">Todo, con soporte humano y comunidad.</p>
             <ul>
-              <li><span className="ck">✓</span> Todo lo del plan mensual</li>
-              <li><span className="ck">✓</span> 2 meses gratis</li>
-              <li><span className="ck">✓</span> Academia y cursos completos</li>
-              <li><span className="ck">✓</span> Certificados de finalización</li>
+              <li><span className="ck">✓</span> Todo lo del plan Biblioteca</li>
+              <li><span className="ck">✓</span> Comunidad privada en Telegram</li>
+              <li><span className="ck">✓</span> Soporte directo con el instructor (1 a 1)</li>
+              <li><span className="ck">✓</span> Academia: cursos, evaluaciones y certificados</li>
+              <li><span className="ck">✓</span> Soporte prioritario</li>
             </ul>
             <Link className="btn btn-primary" href="/planes">Suscribirme</Link>
-          </div>
-          <div className="plan reveal">
-            <div className="pn">VIP</div>
-            <div className="price">$249.90<span>/año</span></div>
-            <ul>
-              <li><span className="ck">✓</span> Todo lo del plan anual</li>
-              <li><span className="ck">✓</span> Soporte prioritario 1 a 1</li>
-              <li><span className="ck">✓</span> Acceso anticipado a herramientas</li>
-            </ul>
-            <Link className="btn btn-ghost" href="/planes">Hacerme VIP</Link>
           </div>
         </div>
       </section>
