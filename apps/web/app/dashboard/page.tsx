@@ -40,6 +40,12 @@ export default async function DashboardPage() {
         </div>
         <div className="flex items-center gap-4">
           <Link
+            href="/archivos"
+            className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
+          >
+            Archivos
+          </Link>
+          <Link
             href="/academia"
             className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
           >

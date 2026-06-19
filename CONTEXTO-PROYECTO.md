@@ -101,6 +101,7 @@ Todas están en `packages/db/prisma/migrations/` y ya corrieron en Neon. Para nu
 
 ### Sitio público / alumno (`apps/web/app/`)
 - `/` landing · `/signin` (login Google) · `/planes` · `/dashboard` (área privada: suscripción, descargas, pagos; muestra enlaces a Academia y, si eres ADMIN, al Panel admin).
+- `/archivos` — biblioteca de archivos con búsqueda y filtros (marca, categoría). Archivos premium requieren suscripción activa. Descarga genera enlace temporal de Nextcloud (24h).
 - `/checkout/success` retorno de Stripe.
 - **Academia (`/academia`):**
   - `/academia` catálogo de cursos publicados con progreso.
@@ -147,7 +148,7 @@ Requisitos: Node 20.11+, pnpm 9.12 (el `.bat` lo instala si falta). El `node_mod
 ## 8. Estado por fases (roadmap)
 
 - ✅ **Fase 1** — Auth Google, planes, checkout Stripe, biblioteca de archivos (Nextcloud), dashboard, **panel administrativo completo**.
-- ⏳ **Fase 2 (siguiente, NO empezada)** — **Bot de Telegram** (al pagar se agrega al grupo privado; al expirar se elimina) · **IA con RAG** (búsqueda en archivos/manuales con Gemini/Claude/Ollama) · **Binance Pay**. Variables de entorno previstas pero vacías (ver sección 3).
+- ⏳ **Fase 2 (siguiente, NO empezada)** — **Webhook de Stripe** para activar suscripción automáticamente · **Biblioteca de archivos pública** con descarga vía Nextcloud (✓) · **Bot de Telegram** (al pagar se agrega al grupo privado; al expirar se elimina) · **IA con RAG** (búsqueda en archivos/manuales con Gemini/Claude/Ollama) · **Binance Pay**. Variables de entorno previstas pero vacías (ver sección 3).
 - ✅ **Fase 3 — COMPLETA** — Academia: cursos, lecciones (video/PDF/texto), inscripción, **progreso guardado**, **evaluaciones** (examen con nota), **certificados** (al completar lecciones + aprobar examen) y **comunidad** (comentarios/Q&A por lección).
 - ⏳ **Fase 4** — Escalabilidad, white-label (marca/logo/dominio configurables para revender), multi-idioma.
 
