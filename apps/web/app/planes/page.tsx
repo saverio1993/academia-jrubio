@@ -34,14 +34,36 @@ function cycleLabel(c: Plan['billingCycle']) {
 
 async function createCheckout(planSlug: string, email?: string | null, userId?: string) {
   'use server';
-  const apiUrl = process.env.API_URL ?? 'http://localhost:4000';
-  const res = await fetch(`${apiUrl}/api/v1/checkout/session`, {
+  const plan = await prisma.plan.findUnique({
+    where: { slug: planSlug },
+    select: { stripePriceId: true },
+  });
+  if (!plan?.stripePriceId) throw new Error('Este plan aún no tiene precio configurado en Stripe.');
+
+  const appUrl = process.env.APP_URL ?? 'https://academia-jrubio-web.vercel.app';
+  const params = new URLSearchParams();
+  params.set('mode', 'subscription');
+  params.set('line_items[0][price]', plan.stripePriceId);
+  params.set('line_items[0][quantity]', '1');
+  params.set('success_url', `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`);
+  params.set('cancel_url', `${appUrl}/planes`);
+  params.set('allow_promotion_codes', 'true');
+  if (email) params.set('customer_email', email);
+  if (userId) params.set('client_reference_id', userId);
+
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ planSlug, email: email ?? undefined, userId }),
+    headers: {
+      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params.toString(),
     cache: 'no-store',
   });
-  if (!res.ok) throw new Error(`Checkout falló: ${res.status}`);
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`Stripe checkout falló: ${t.slice(0, 200)}`);
+  }
   const data = (await res.json()) as { url: string };
   const { redirect } = await import('next/navigation');
   redirect(data.url);
