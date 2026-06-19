@@ -1,8 +1,9 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { PageHeader, Card, Field, inputCls } from '../_components/ui';
-import { updateAIConfig, testAIConnection } from './actions';
+import { updateAIConfig } from './actions';
 import { getAIConfigReadOnly } from '@/lib/ai';
+import TestAIButton from './test-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -142,17 +143,11 @@ export default async function IAPage() {
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Envía un mensaje de prueba a la API con los valores actuales (env vars).
             </p>
-            <form action={testAIConnection} className="space-y-3">
-              <input type="hidden" name="apiKey" defaultValue={config?.apiKey ?? ''} />
-              <input type="hidden" name="endpoint" defaultValue={endpoint} />
-              <input type="hidden" name="model" defaultValue={model} />
-              <button className="w-full rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20">
-                Probar ahora
-              </button>
-              <p className="text-xs text-[var(--color-muted)]">
-                El resultado se mostrará en la consola del navegador (F12).
-              </p>
-            </form>
+            <TestAIButton
+              apiKey={config?.apiKey ?? ''}
+              endpoint={endpoint}
+              model={model}
+            />
           </Card>
 
           <Card className="p-6">

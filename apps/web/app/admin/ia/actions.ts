@@ -47,7 +47,7 @@ export async function updateAIConfig(formData: FormData) {
   revalidatePath('/admin/ia');
 }
 
-export async function testAIConnection(formData: FormData) {
+export async function testAIConnection(formData: FormData): Promise<string> {
   await requireAdmin();
 
   const apiKey = (formData.get('apiKey') as string) || process.env.MINIMAX_API_KEY || '';
@@ -89,9 +89,8 @@ export async function testAIConnection(formData: FormData) {
       throw new Error('API respondió pero sin contenido válido');
     }
 
-    // Log en consola del servidor (visible en Vercel logs)
-    console.log(`[AI test OK] ${content}`);
     revalidatePath('/admin/ia');
+    return `Modelo respondió: "${content}"`;
   } catch (e) {
     throw new Error(`Error: ${e instanceof Error ? e.message : 'desconocido'}`);
   }
