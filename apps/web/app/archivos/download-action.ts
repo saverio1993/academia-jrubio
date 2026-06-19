@@ -28,9 +28,22 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   // Si el storageKey empieza con /base de datos Academia/, lo usamos tal cual
   // (porque esa es la ruta real en Nextcloud ahora).
   let fullPath: string;
-  if (storageKey.startsWith('/') || storageKey.startsWith('base de datos')) {
+  // Si el storageKey ya es una ruta absoluta o pertenece a la carpeta "base de datos Academia"
+  if (storageKey.startsWith('/')) {
     fullPath = '/' + storageKey.replace(/^\//, '');
+  } else if (storageKey.startsWith('base de datos') ||
+             storageKey.startsWith('DUMP ') ||
+             storageKey.startsWith('BOX') ||
+             storageKey.startsWith('pasarss') ||
+             storageKey.startsWith('samsung/') ||
+             storageKey.startsWith('xiaomi/') ||
+             storageKey.startsWith('motorola/') ||
+             storageKey.startsWith('huawei/') ||
+             storageKey.startsWith('honor/')) {
+    // Carpetas que están en "base de datos Academia" (raíz del usuario)
+    fullPath = '/base de datos Academia/' + storageKey;
   } else {
+    // Fallback al basePath configurado en .env
     const cleanBase = basePath.replace(/^\/|\/$/g, '');
     const cleanKey = storageKey.replace(/^\//, '');
     fullPath = `/${cleanBase}/${cleanKey}`;
