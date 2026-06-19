@@ -73,10 +73,11 @@ export function AIChat() {
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error desconocido';
+      const friendly = friendlyError(msg);
       const errorMsg: Message = {
         id: `e-${Date.now()}`,
         role: 'assistant',
-        content: `❌ ${msg}`,
+        content: friendly,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -163,4 +164,30 @@ export function AIChat() {
       </form>
     </div>
   );
+}
+
+function friendlyError(raw: string): string {
+  const m = raw.toLowerCase();
+  if (m.includes('api 401') || m.includes('unauthorized') || m.includes('login fail')) {
+    return '⚠️ El token de la IA no es válido. Contacta al administrador.';
+  }
+  if (m.includes('api 429') || m.includes('rate limit')) {
+    return '⏳ Demasiadas consultas. Espera un momento e inténtalo de nuevo.';
+  }
+  if (m.includes('api 404') || m.includes('not found')) {
+    return '⚠️ La IA no está disponible temporalmente. Inténtalo más tarde.';
+  }
+  if (m.includes('api 500') || m.includes('api 502') || m.includes('api 503')) {
+    return '⚠️ La IA tuvo un problema técnico. Inténtalo en un momento.';
+  }
+  if (m.includes('no autenticado')) {
+    return '🔒 Inicia sesión para usar el chat.';
+  }
+  if (m.includes('suscripción')) {
+    return '⭐ El chat IA es para usuarios con suscripción activa.';
+  }
+  if (m.includes('deshabilitado') || m.includes('no configurada')) {
+    return '⚠️ La IA no está configurada. Contacta al administrador.';
+  }
+  return '⚠️ No pude responder. Inténtalo de nuevo.';
 }
