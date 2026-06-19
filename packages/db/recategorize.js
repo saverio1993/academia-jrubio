@@ -15,7 +15,7 @@ const p = new PrismaClient();
 const FOLDER_RULES = [
   // Samsung
   { match: /^SAMFW|^samfw/i, set: { brand: 'Samsung', category: 'firmware', subcategory: 'SAMFW' } },
-  { match: /Magic\s*\d*\s*Lite|magic\s*\d*\s*lite/i, set: { brand: 'Samsung', category: 'dump', subcategory: 'Magic Dump' } },
+  { match: /Magic\s*\d*\s*Lite|magic\s*\d*\s*lite/i, set: { brand: 'Honor', category: 'dump', subcategory: 'Magic Dump' } },
   { match: /Odin|odin/i, set: { brand: 'Samsung', category: 'herramientas', subcategory: 'Odin Tools' } },
   { match: /DUMP SAMSUNG/i, set: { brand: 'Samsung', category: 'dump', subcategory: 'DUMP Samsung' } },
   { match: /Honor X\dC/i, set: { brand: 'Honor', category: 'dump', subcategory: 'Honor Dump' } },
