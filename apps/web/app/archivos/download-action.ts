@@ -1,7 +1,6 @@
 'use server';
 
 import { auth } from '@/auth';
-import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
 
@@ -25,10 +24,17 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   expiresAt.setUTCDate(expiresAt.getUTCDate() + 1);
   const expireDateStr = expiresAt.toISOString().split('T')[0];
 
-  // Resuelve la ruta completa dentro de Nextcloud
-  const cleanBase = basePath.replace(/^\/|\/$/g, '');
-  const cleanKey = storageKey.replace(/^\//, '');
-  const fullPath = `/${cleanBase}/${cleanKey}`;
+  // Resuelve la ruta completa dentro de Nextcloud.
+  // Si el storageKey empieza con /base de datos Academia/, lo usamos tal cual
+  // (porque esa es la ruta real en Nextcloud ahora).
+  let fullPath: string;
+  if (storageKey.startsWith('/') || storageKey.startsWith('base de datos')) {
+    fullPath = '/' + storageKey.replace(/^\//, '');
+  } else {
+    const cleanBase = basePath.replace(/^\/|\/$/g, '');
+    const cleanKey = storageKey.replace(/^\//, '');
+    fullPath = `/${cleanBase}/${cleanKey}`;
+  }
 
   // Llama a la OCS API de Nextcloud
   const ocsUrl = `${baseUrl.replace(/\/$/, '')}/ocs/v2.php/apps/files_sharing/api/v1/shares`;
@@ -53,7 +59,8 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   });
 
   if (!res.ok) {
-    throw new Error(`Nextcloud share failed: ${res.status} ${res.statusText}`);
+    const text = await res.text();
+    throw new Error(`Nextcloud share failed: ${res.status} ${res.statusText} - ${text.substring(0, 200)}`);
   }
 
   const json = (await res.json()) as { ocs?: { data?: { url?: string } } };
@@ -66,10 +73,17 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   return { url: downloadUrl, expiresAt };
 }
 
-export async function downloadFile(fileId: string, _storageKey: string, _userId: string) {
+/**
+ * Devuelve la URL de descarga. NO hace redirect, porque en Next.js
+ * los redirects en Server Actions llamadas desde Client Components no funcionan.
+ * El cliente hace window.location.href con la URL devuelta.
+ */
+export async function getDownloadUrl(
+  fileId: string,
+): Promise<{ url: string; expiresAt: string }> {
   const session = await auth();
   if (!session?.user?.id) {
-    redirect('/signin?callbackUrl=/archivos');
+    throw new Error('NOT_AUTHENTICATED');
   }
 
   const file = await prisma.fileItem.findUnique({ where: { id: fileId } });
@@ -78,7 +92,7 @@ export async function downloadFile(fileId: string, _storageKey: string, _userId:
   // Verificar suscripción para archivos premium
   if (file.isPremium) {
     const hasSub = await hasActiveSubscription(session.user.id);
-    if (!hasSub) redirect('/planes');
+    if (!hasSub) throw new Error('NO_SUBSCRIPTION');
   }
 
   // Generar enlace de descarga desde Nextcloud
@@ -95,6 +109,5 @@ export async function downloadFile(fileId: string, _storageKey: string, _userId:
     }),
   ]);
 
-  // Redirigir al enlace de Nextcloud
-  redirect(share.url);
+  return { url: share.url, expiresAt: share.expiresAt.toISOString() };
 }

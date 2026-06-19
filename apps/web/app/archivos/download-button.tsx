@@ -1,13 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { downloadFile } from './download-action';
+import { getDownloadUrl } from './download-action';
 
 export function DownloadButton({
   fileId,
-  storageKey,
   blocked,
-  userId,
 }: {
   fileId: string;
   storageKey: string;
@@ -15,13 +13,26 @@ export function DownloadButton({
   userId: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleDownload() {
     if (blocked) return;
     setLoading(true);
+    setError(null);
     try {
-      await downloadFile(fileId, storageKey, userId);
-    } finally {
+      const { url } = await getDownloadUrl(fileId);
+      // Redirigir en el cliente a la URL de Nextcloud
+      window.location.href = url;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido';
+      if (msg === 'NOT_AUTHENTICATED') {
+        window.location.href = '/signin?callbackUrl=/archivos';
+      } else if (msg === 'NO_SUBSCRIPTION') {
+        window.location.href = '/planes';
+      } else {
+        setError(msg);
+        console.error('Download error:', e);
+      }
       setLoading(false);
     }
   }
@@ -37,6 +48,18 @@ export function DownloadButton({
     );
   }
 
+  if (error) {
+    return (
+      <button
+        onClick={handleDownload}
+        className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 whitespace-nowrap"
+        title={error}
+      >
+        ⚠ Reintentar
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={handleDownload}
@@ -49,9 +72,7 @@ export function DownloadButton({
           Generando…
         </>
       ) : (
-        <>
-          ⬇ Descargar
-        </>
+        <>⬇ Descargar</>
       )}
     </button>
   );
