@@ -14,11 +14,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    if (session.user.role === 'ADMIN') {
-      return NextResponse.json(
-        { error: 'El chat IA está disponible solo para usuarios estándar' },
-        { status: 403 }
-      );
+    if (session.user.role !== 'ADMIN' && session.user.role !== 'MODERATOR') {
+      // Usuarios estándar pueden usar el chat si tienen suscripción activa
+      const { hasActiveSubscription } = await import('@/lib/access');
+      const hasSub = await hasActiveSubscription(session.user.id);
+      if (!hasSub) {
+        return NextResponse.json(
+          { error: 'El chat IA está disponible para administradores y usuarios con suscripción activa.' },
+          { status: 403 }
+        );
+      }
     }
 
     if (!checkRateLimit(session.user.id)) {
