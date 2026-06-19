@@ -13,7 +13,6 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   const baseUrl = process.env.NEXTCLOUD_URL;
   const username = process.env.NEXTCLOUD_USER;
   const appPassword = process.env.NEXTCLOUD_APP_PASSWORD;
-  const basePath = process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files';
 
   if (!baseUrl || !username || !appPassword) {
     throw new Error('Faltan variables de Nextcloud');
@@ -24,28 +23,18 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   expiresAt.setUTCDate(expiresAt.getUTCDate() + 1);
   const expireDateStr = expiresAt.toISOString().split('T')[0];
 
-  // Resuelve la ruta completa dentro de Nextcloud.
-  // Si el storageKey empieza con /base de datos Academia/, lo usamos tal cual
-  // (porque esa es la ruta real en Nextcloud ahora).
+  // Todos los archivos están bajo /AcademiaJRubio/ en Nextcloud.
+  // Si el storageKey ya empieza con /AcademiaJRubio/, lo dejamos tal cual.
+  // Si no, lo prefijamos.
   let fullPath: string;
-  // Si el storageKey ya es una ruta absoluta
-  if (storageKey.startsWith('/')) {
-    fullPath = '/' + storageKey.replace(/^\//, '');
-  } else if (storageKey.startsWith('base de datos') ||
-             storageKey.startsWith('DUMP ') ||
-             storageKey.startsWith('BOX') ||
-             storageKey.startsWith('pasarss') ||
-             storageKey.startsWith('samsung/') ||
-             storageKey.startsWith('xiaomi/') ||
-             storageKey.startsWith('motorola/') ||
-             storageKey.startsWith('huawei/') ||
-             storageKey.startsWith('honor/')) {
-    // Carpetas que están en "base de datos Academia" (raíz del usuario)
-    fullPath = '/base de datos Academia/' + storageKey;
+  if (storageKey.startsWith('/AcademiaJRubio/')) {
+    fullPath = storageKey;
+  } else if (storageKey.startsWith('/')) {
+    // Ya es absoluta pero no está en AcademiaJRubio — la dejamos tal cual
+    fullPath = storageKey;
   } else {
-    // Fallback: archivos sueltos en raíz del usuario (facturas, fastboot, etc)
-    // Si la subcarpeta no existe en NEXTCLOUD_BASE_PATH, probar en raíz
-    fullPath = '/' + storageKey;
+    // Path relativo — prefijo con /AcademiaJRubio/
+    fullPath = '/AcademiaJRubio/' + storageKey;
   }
 
   // Llama a la OCS API de Nextcloud
