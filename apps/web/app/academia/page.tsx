@@ -35,7 +35,9 @@ export default async function AcademiaCatalog() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Academia</h1>
+        <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
+          Tu <span className="grad-text">Academia</span> técnica
+        </h1>
         <p className="mt-2 max-w-2xl text-[var(--color-muted)]">
           Cursos prácticos de reparación, desbloqueo, FRP y software para técnicos de telefonía móvil.
           Aprende a tu ritmo y obtén tu certificado.

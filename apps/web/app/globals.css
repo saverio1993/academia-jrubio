@@ -13,15 +13,7 @@
   --radius: 0.5rem;
 }
 
-@media (prefers-color-scheme: light) {
-  @theme {
-    --color-bg: #fafafa;
-    --color-fg: #0a0a0b;
-    --color-muted: #71717a;
-    --color-border: #e4e4e7;
-    --color-card: #ffffff;
-  }
-}
+/* Sitio siempre en modo oscuro premium (no seguimos el modo claro del sistema) */
 
 html, body {
   background: var(--color-bg);
@@ -30,7 +22,24 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Profundidad sutil (resplandores) en TODAS las páginas internas */
+body {
+  background-image:
+    radial-gradient(640px circle at 0% -5%, rgba(249,115,22,0.10), transparent 55%),
+    radial-gradient(720px circle at 100% 8%, rgba(124,58,237,0.10), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
 * { box-sizing: border-box; }
+
+/* Utilidad: texto con gradiente de marca (usable en cualquier página) */
+.grad-text {
+  background: linear-gradient(120deg, #f97316, #fb923c 45%, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 /* ============================================================
    LANDING PREMIUM (scoped bajo .landing — no afecta otras páginas)
