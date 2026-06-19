@@ -98,17 +98,6 @@ export function UserMenu({ name, email, image, role }: Props) {
           {/* Opciones */}
           <div className="py-1">
             <Link
-              href="/"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-            >
-              <span>🏠</span>
-              <div>
-                <p className="font-medium">Inicio</p>
-                <p className="text-xs text-[var(--color-muted)]">Página principal</p>
-              </div>
-            </Link>
-            <Link
               href="/dashboard"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
@@ -117,17 +106,6 @@ export function UserMenu({ name, email, image, role }: Props) {
               <div>
                 <p className="font-medium">Mi cuenta</p>
                 <p className="text-xs text-[var(--color-muted)]">Dashboard</p>
-              </div>
-            </Link>
-            <Link
-              href="/academia"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-            >
-              <span>🎓</span>
-              <div>
-                <p className="font-medium">Academia</p>
-                <p className="text-xs text-[var(--color-muted)]">Cursos y tutoriales</p>
               </div>
             </Link>
             <Link
@@ -150,17 +128,6 @@ export function UserMenu({ name, email, image, role }: Props) {
               <div>
                 <p className="font-medium">Seguridad</p>
                 <p className="text-xs text-[var(--color-muted)]">Contraseña y acceso</p>
-              </div>
-            </Link>
-            <Link
-              href="/planes"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-            >
-              <span>⭐</span>
-              <div>
-                <p className="font-medium">Suscripción</p>
-                <p className="text-xs text-[var(--color-muted)]">Plan y pagos</p>
               </div>
             </Link>
             {role === 'ADMIN' && (

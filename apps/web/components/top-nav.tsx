@@ -18,8 +18,8 @@ export async function TopNav() {
   return (
     <header className="sticky top-0 z-40 backdrop-blur-md bg-[var(--color-bg)]/80 border-b border-[var(--color-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
-        {/* Logo a la izquierda */}
-        <Link href={logged ? '/dashboard' : '/'} className="flex items-center gap-3 shrink-0 group">
+        {/* Logo a la izquierda — siempre va al inicio */}
+        <Link href="/" className="flex items-center gap-3 shrink-0 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-academia.png"
@@ -36,17 +36,27 @@ export async function TopNav() {
           </div>
         </Link>
 
-        {/* Solo Archivos en el centro (logged) o links landing (no logged) */}
+        {/* Centro: Archivos + Academia (en naranja) */}
         <nav className="hidden md:flex items-center gap-5 text-sm flex-1 justify-center">
           {logged ? (
-            <Link href="/archivos" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-              Archivos
-            </Link>
+            <>
+              <Link href="/archivos" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+                Archivos
+              </Link>
+              <Link
+                href="/academia"
+                className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors font-medium"
+              >
+                Academia
+              </Link>
+            </>
           ) : (
             <>
               <a href="#beneficios" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Beneficios</a>
               <a href="#planes" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Planes</a>
-              <Link href="/academia" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Academia</Link>
+              <Link href="/academia" className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors font-medium">
+                Academia
+              </Link>
             </>
           )}
         </nav>

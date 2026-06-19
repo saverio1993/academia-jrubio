@@ -13,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* Top bar */}
       <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-bg)]/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          <Link href="/dashboard" className="flex items-center gap-3 shrink-0 group">
+          <Link href="/" className="flex items-center gap-3 shrink-0 group">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo-academia.png"
