@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { auth, signOut } from '@/auth';
+import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
+import { UserMenu } from '@/components/user-menu';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,8 @@ export default async function DashboardPage() {
   if (!session?.user?.id) redirect('/signin?callbackUrl=/dashboard');
 
   const userId = session.user.id;
-  const [subscriptions, downloads, payments] = await Promise.all([
+  const [user, subscriptions, downloads, payments] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId } }),
     prisma.subscription.findMany({
       where: { userId },
       include: { plan: true },
@@ -34,10 +36,9 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-12">
-        <div>
-          <p className="text-sm text-[var(--color-muted)]">Bienvenido</p>
-          <h1 className="text-3xl font-bold">{session.user.name ?? session.user.email}</h1>
-        </div>
+        <Link href="/dashboard" className="text-xl font-bold">
+          📚 Mavim <span className="text-[var(--color-accent)]">Biblioteca de Archivos</span>
+        </Link>
         <div className="flex items-center gap-4">
           <Link
             href="/archivos"
@@ -51,24 +52,15 @@ export default async function DashboardPage() {
           >
             Academia
           </Link>
-          {session.user.role === 'ADMIN' && (
+          {user?.role === 'ADMIN' && (
             <Link
               href="/admin"
-              className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-3 py-1.5 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20"
+              className="text-sm text-[var(--color-accent)] transition-colors hover:text-[var(--color-accent-hover)]"
             >
-              Panel admin
+              Admin
             </Link>
           )}
-          <form
-            action={async () => {
-              'use server';
-              await signOut({ redirectTo: '/' });
-            }}
-          >
-            <button className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-              Cerrar sesión
-            </button>
-          </form>
+          <UserMenu name={user?.name ?? null} email={user?.email ?? null} image={user?.image ?? null} role={user?.role ?? 'USER'} />
         </div>
       </div>
 

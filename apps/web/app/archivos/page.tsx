@@ -1,11 +1,13 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
 import { bytes, dateShort } from '@/lib/format';
 import { DownloadButton } from './download-button';
 import { AIChat } from './ai-chat';
 import { FileTree } from './file-tree';
+import { UserMenu } from '@/components/user-menu';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,16 +64,23 @@ export default async function ArchivosPage({
   return (
     <main className="min-h-screen px-6 py-12 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-3xl font-bold">📚 Biblioteca de Archivos</h1>
-          <p className="text-sm text-[var(--color-muted)] mt-1">
-            {files.length} archivo(s) · {!hasSub && <span className="text-[var(--color-accent)]">Premium requiere suscripción</span>}
-          </p>
-        </div>
+        <Link href="/dashboard" className="text-xl font-bold">
+          📚 Mavim <span className="text-[var(--color-accent)]">Biblioteca de Archivos</span>
+        </Link>
         <div className="flex items-center gap-4">
-          <a href="/dashboard" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">← Volver</a>
-          <a href="/planes" className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-3 py-1.5 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20">Ver planes</a>
+          <Link href="/dashboard" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Dashboard</Link>
+          <Link href="/academia" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Academia</Link>
+          {session.user.role === 'ADMIN' && (
+            <Link href="/admin" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]">Admin</Link>
+          )}
+          <UserMenu name={session.user.name ?? null} email={session.user.email ?? null} image={session.user.image ?? null} role={session.user.role ?? 'USER'} />
         </div>
+      </div>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">📚 Biblioteca de Archivos</h1>
+        <p className="text-sm text-[var(--color-muted)] mt-1">
+          {files.length} archivo(s) · {!hasSub && <span className="text-[var(--color-accent)]">Premium requiere suscripción</span>}
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
