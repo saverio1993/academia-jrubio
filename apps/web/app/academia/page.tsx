@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@academia/db';
 import { auth } from '@/auth';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,8 +34,10 @@ export default async function AcademiaCatalog() {
   }
 
   return (
-    <main className="mx-auto max-w-6xl px-6 py-12">
-      <div className="mb-10">
+    <>
+      <TopNav />
+      <main className="mx-auto max-w-6xl px-6 py-12">
+        <div className="mb-10">
         <h1 className="text-3xl font-bold tracking-tight md:text-5xl">
           Tu <span className="grad-text">Academia</span> técnica
         </h1>
@@ -99,6 +102,7 @@ export default async function AcademiaCatalog() {
           })}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

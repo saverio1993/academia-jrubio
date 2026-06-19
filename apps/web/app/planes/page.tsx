@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@academia/db';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,18 +84,7 @@ export default async function PlanesPage() {
       <div className="glow g2" />
       <div className="glow g3" />
 
-      <nav>
-        <div className="navin">
-          <Link href="/" className="logo" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <span className="dot">JR</span> Academia <span style={{ color: 'var(--lp-accent)' }}>J Rubio</span>
-          </Link>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Link className="btn btn-ghost" href={logged ? '/dashboard' : '/signin'}>
-              {logged ? 'Mi cuenta' : 'Iniciar sesión'}
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <TopNav />
 
       <section className="wrap" style={{ paddingTop: 70 }}>
         <div className="stitle reveal in">
