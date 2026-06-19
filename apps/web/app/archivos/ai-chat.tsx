@@ -46,16 +46,28 @@ export function AIChat() {
     setLoading(true);
 
     try {
-      // Por ahora: búsqueda local en la BD. Luego se reemplaza por RAG con IA.
-      const res = await fetch(`/api/chat/search?q=${encodeURIComponent(userMsg.content)}`);
+      // Historial de la conversación (sin el welcome system message)
+      const history = messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .slice(-10)
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+
+      const res = await fetch('/api/chat/ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMsg.content, history }),
+      });
       const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Error en la consulta');
+      }
 
       const assistantMsg: Message = {
         id: `a-${Date.now()}`,
         role: 'assistant',
-        content: data.message || 'Sin resultados.',
+        content: data.reply || 'Sin respuesta.',
         timestamp: new Date(),
-        sources: data.results || [],
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
