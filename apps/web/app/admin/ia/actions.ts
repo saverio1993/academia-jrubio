@@ -58,8 +58,14 @@ export async function testAIConnection(formData: FormData) {
     throw new Error('Falta MINIMAX_API_KEY en Vercel Environment Variables');
   }
 
+  // Construir URL completa: si no termina en /chat/completions, agregarlo
+  let apiUrl = endpoint.replace(/\/+$/, '');
+  if (!apiUrl.endsWith('/chat/completions')) {
+    apiUrl = `${apiUrl}/chat/completions`;
+  }
+
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

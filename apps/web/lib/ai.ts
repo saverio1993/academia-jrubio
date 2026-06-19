@@ -1,6 +1,6 @@
 // Wrapper de IA. Lee config SOLO de env vars (panel admin es read-only).
 // Cambiar token/modelo/prompt requiere editar env vars en Vercel y redeploy.
-import { prisma } from '@academia/db';
+
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -109,8 +109,14 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  // Construir URL completa: si el endpoint no termina en /chat/completions, agregarlo
+  let apiUrl = config.endpoint.replace(/\/+$/, '');
+  if (!apiUrl.endsWith('/chat/completions')) {
+    apiUrl = `${apiUrl}/chat/completions`;
+  }
+
   try {
-    const res = await fetch(config.endpoint, {
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
