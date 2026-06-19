@@ -11,14 +11,45 @@ export default async function IAPage() {
   if (!session?.user?.id) redirect('/signin?callbackUrl=/admin/ia');
   if (session.user.role !== 'ADMIN') redirect('/');
 
-  let config = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
+  // Cargar config con manejo de errores
+  let config = null;
+  let loadError = null;
+  try {
+    config = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
+  } catch (e) {
+    loadError = e instanceof Error ? e.message : 'Error desconocido';
+  }
+
   if (!config) {
-    config = await prisma.aIConfig.create({
-      data: {
-        id: 'default',
-        systemPrompt: 'Eres el asistente de búsqueda de la Academia J Rubio. SOLO puedes ayudar a buscar archivos en la biblioteca. NO tienes acceso a admin ni a funciones de modificación. Responde en español, breve y amigable.',
-      },
-    });
+    try {
+      config = await prisma.aIConfig.create({
+        data: {
+          id: 'default',
+        },
+      });
+    } catch (e) {
+      return (
+        <>
+          <PageHeader title="Asistente de IA" />
+          <Card className="p-6">
+            <h2 className="font-semibold text-red-400 mb-2">Error al cargar la configuración</h2>
+            <p className="text-sm text-[var(--color-muted)] mb-4">
+              No se pudo acceder a la tabla <code>AIConfig</code> de la base de datos.
+            </p>
+            <p className="text-xs text-red-300 font-mono">
+              {loadError || 'Desconocido'}
+            </p>
+            <p className="text-sm mt-4">
+              Posibles causas:
+            </p>
+            <ul className="text-sm text-[var(--color-muted)] list-disc pl-6 mt-2 space-y-1">
+              <li>El build de Vercel no incluyó el último modelo de Prisma. Espera unos minutos al redeploy.</li>
+              <li>La migración no se aplicó. Ejecuta en tu consola: <code className="text-xs">cd packages/db && npx prisma migrate deploy</code></li>
+            </ul>
+          </Card>
+        </>
+      );
+    }
   }
 
   return (
@@ -29,7 +60,6 @@ export default async function IAPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Formulario principal */}
         <Card className="p-6">
           <h2 className="font-semibold mb-4">Configuración</h2>
           <form action={updateAIConfig} className="space-y-4">
@@ -132,13 +162,11 @@ export default async function IAPage() {
           </form>
         </Card>
 
-        {/* Test de conexión + info */}
         <div className="space-y-4">
           <Card className="p-6">
             <h2 className="font-semibold mb-2">Probar conexión</h2>
             <p className="text-xs text-[var(--color-muted)] mb-4">
               Envía un mensaje de prueba a la API con los valores actuales del formulario.
-              No guarda nada, solo verifica que la configuración funciona.
             </p>
             <form action={testAIConnection} className="space-y-3">
               <input type="hidden" name="apiKey" defaultValue={config.apiKey} />
@@ -148,7 +176,7 @@ export default async function IAPage() {
                 Probar ahora
               </button>
               <p className="text-xs text-[var(--color-muted)]">
-                Si la API responde correctamente, verás el resultado en la consola del navegador.
+                Si la API responde correctamente, el resultado se mostrará en la consola del navegador.
               </p>
             </form>
           </Card>
@@ -156,7 +184,7 @@ export default async function IAPage() {
           <Card className="p-6">
             <h2 className="font-semibold mb-2">Última actualización</h2>
             <p className="text-xs text-[var(--color-muted)]">
-              {new Date(config.updatedAt).toLocaleString('es-PA')}
+              {config.updatedAt ? new Date(config.updatedAt).toLocaleString('es-PA') : '—'}
             </p>
             <p className="text-xs text-[var(--color-muted)] mt-2">
               El chat en /archivos refleja esta configuración en menos de 5 segundos.
