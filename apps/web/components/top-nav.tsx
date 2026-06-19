@@ -36,20 +36,12 @@ export async function TopNav() {
           </div>
         </Link>
 
-        {/* Links centrales: Inicio, Archivos, Academia */}
+        {/* Solo Archivos en el centro (logged) o links landing (no logged) */}
         <nav className="hidden md:flex items-center gap-5 text-sm flex-1 justify-center">
           {logged ? (
-            <>
-              <Link href="/dashboard" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-                Inicio
-              </Link>
-              <Link href="/archivos" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-                Archivos
-              </Link>
-              <Link href="/academia" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-                Academia
-              </Link>
-            </>
+            <Link href="/archivos" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
+              Archivos
+            </Link>
           ) : (
             <>
               <a href="#beneficios" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Beneficios</a>
@@ -59,7 +51,7 @@ export async function TopNav() {
           )}
         </nav>
 
-        {/* Acciones a la derecha */}
+        {/* Derecha: Suscripción + Avatar */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {logged ? (
             <>
@@ -72,15 +64,6 @@ export async function TopNav() {
                 <span>⭐</span>
                 <span>Suscripción</span>
               </Link>
-              {/* Admin: solo si admin */}
-              {user?.role === 'ADMIN' && (
-                <Link
-                  href="/admin"
-                  className="hidden sm:inline-block text-sm font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
-                >
-                  Admin
-                </Link>
-              )}
               <UserMenu
                 name={user?.name ?? null}
                 email={user?.email ?? null}
