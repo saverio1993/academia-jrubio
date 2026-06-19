@@ -28,7 +28,7 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   // Si el storageKey empieza con /base de datos Academia/, lo usamos tal cual
   // (porque esa es la ruta real en Nextcloud ahora).
   let fullPath: string;
-  // Si el storageKey ya es una ruta absoluta o pertenece a la carpeta "base de datos Academia"
+  // Si el storageKey ya es una ruta absoluta
   if (storageKey.startsWith('/')) {
     fullPath = '/' + storageKey.replace(/^\//, '');
   } else if (storageKey.startsWith('base de datos') ||
@@ -43,10 +43,9 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
     // Carpetas que están en "base de datos Academia" (raíz del usuario)
     fullPath = '/base de datos Academia/' + storageKey;
   } else {
-    // Fallback al basePath configurado en .env
-    const cleanBase = basePath.replace(/^\/|\/$/g, '');
-    const cleanKey = storageKey.replace(/^\//, '');
-    fullPath = `/${cleanBase}/${cleanKey}`;
+    // Fallback: archivos sueltos en raíz del usuario (facturas, fastboot, etc)
+    // Si la subcarpeta no existe en NEXTCLOUD_BASE_PATH, probar en raíz
+    fullPath = '/' + storageKey;
   }
 
   // Llama a la OCS API de Nextcloud
