@@ -1,8 +1,7 @@
-import Link from 'next/link';
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
-import { UserMenu } from '@/components/user-menu';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,8 +10,7 @@ export default async function DashboardPage() {
   if (!session?.user?.id) redirect('/signin?callbackUrl=/dashboard');
 
   const userId = session.user.id;
-  const [user, subscriptions, downloads, payments] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
+  const [subscriptions, downloads, payments] = await Promise.all([
     prisma.subscription.findMany({
       where: { userId },
       include: { plan: true },
@@ -34,125 +32,101 @@ export default async function DashboardPage() {
   const activeSub = subscriptions.find((s) => s.status === 'ACTIVE');
 
   return (
-    <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-12">
-        <Link href="/dashboard" className="text-xl font-bold">
-          📚 Mavim <span className="text-[var(--color-accent)]">Biblioteca de Archivos</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/archivos"
-            className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-          >
-            Archivos
-          </Link>
-          <Link
-            href="/academia"
-            className="text-sm text-[var(--color-muted)] transition-colors hover:text-[var(--color-fg)]"
-          >
-            Academia
-          </Link>
-          {user?.role === 'ADMIN' && (
-            <Link
-              href="/admin"
-              className="text-sm text-[var(--color-accent)] transition-colors hover:text-[var(--color-accent-hover)]"
-            >
-              Admin
-            </Link>
-          )}
-          <UserMenu name={user?.name ?? null} email={user?.email ?? null} image={user?.image ?? null} role={user?.role ?? 'USER'} />
+    <>
+      <TopNav />
+      <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
+        <div className="mb-12">
+          <p className="text-sm text-[var(--color-muted)]">Bienvenido</p>
+          <h1 className="text-3xl font-bold">{session.user.name ?? session.user.email}</h1>
         </div>
-      </div>
 
-      {/* Estado de suscripción */}
-      <section className="mb-12">
-        <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
-          Suscripción
-        </h2>
-        {activeSub ? (
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
-            <div className="flex items-baseline justify-between">
-              <div>
-                <p className="text-2xl font-semibold">{activeSub.plan.name}</p>
-                <p className="text-sm text-[var(--color-muted)]">
-                  ${(activeSub.plan.priceCents / 100).toFixed(2)} {activeSub.plan.currency} ·{' '}
-                  {activeSub.plan.billingCycle.toLowerCase()}
-                </p>
-              </div>
-              {activeSub.expiresAt && (
-                <p className="text-xs text-[var(--color-muted)]">
-                  Expira: {new Date(activeSub.expiresAt).toLocaleDateString('es-PA')}
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-center">
-            <p className="text-[var(--color-muted)] mb-4">No tienes una suscripción activa</p>
-            <a
-              href="/planes"
-              className="inline-block rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-5 py-2 font-medium transition-colors"
-            >
-              Ver planes
-            </a>
-          </div>
-        )}
-      </section>
-
-      {/* Descargas recientes */}
-      <section className="mb-12">
-        <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
-          Últimas descargas
-        </h2>
-        {downloads.length > 0 ? (
-          <ul className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
-            {downloads.map((d) => (
-              <li key={d.id} className="px-6 py-4 flex items-center justify-between">
+        <section className="mb-12">
+          <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
+            Suscripción
+          </h2>
+          {activeSub ? (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6">
+              <div className="flex items-baseline justify-between">
                 <div>
-                  <p className="font-medium">{d.file.title}</p>
-                  <p className="text-xs text-[var(--color-muted)]">
-                    {d.file.brand} · {d.file.category}
+                  <p className="text-2xl font-semibold">{activeSub.plan.name}</p>
+                  <p className="text-sm text-[var(--color-muted)]">
+                    ${(activeSub.plan.priceCents / 100).toFixed(2)} {activeSub.plan.currency} ·{' '}
+                    {activeSub.plan.billingCycle.toLowerCase()}
                   </p>
                 </div>
-                <p className="text-xs text-[var(--color-muted)]">
-                  {new Date(d.createdAt).toLocaleString('es-PA')}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-[var(--color-muted)]">Aún no has descargado nada.</p>
-        )}
-      </section>
+                {activeSub.expiresAt && (
+                  <p className="text-xs text-[var(--color-muted)]">
+                    Expira: {new Date(activeSub.expiresAt).toLocaleDateString('es-PA')}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 text-center">
+              <p className="text-[var(--color-muted)] mb-4">No tienes una suscripción activa</p>
+              <a
+                href="/planes"
+                className="inline-block rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-5 py-2 font-medium transition-colors"
+              >
+                Ver planes
+              </a>
+            </div>
+          )}
+        </section>
 
-      {/* Pagos */}
-      <section>
-        <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
-          Historial de pagos
-        </h2>
-        {payments.length > 0 ? (
-          <ul className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
-            {payments.map((p) => (
-              <li key={p.id} className="px-6 py-4 flex items-center justify-between text-sm">
-                <span>${(p.amountCents / 100).toFixed(2)} {p.currency}</span>
-                <span className="text-[var(--color-muted)]">{p.provider}</span>
-                <span className={
-                  p.status === 'SUCCEEDED' ? 'text-green-400' :
-                  p.status === 'FAILED' || p.status === 'REJECTED' ? 'text-red-400' :
-                  'text-[var(--color-muted)]'
-                }>
-                  {p.status}
-                </span>
-                <span className="text-[var(--color-muted)]">
-                  {new Date(p.createdAt).toLocaleDateString('es-PA')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-[var(--color-muted)]">Sin pagos registrados.</p>
-        )}
-      </section>
-    </main>
+        <section className="mb-12">
+          <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
+            Últimas descargas
+          </h2>
+          {downloads.length > 0 ? (
+            <ul className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
+              {downloads.map((d) => (
+                <li key={d.id} className="px-6 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{d.file.title}</p>
+                    <p className="text-xs text-[var(--color-muted)]">
+                      {d.file.brand} · {d.file.category}
+                    </p>
+                  </div>
+                  <p className="text-xs text-[var(--color-muted)]">
+                    {new Date(d.createdAt).toLocaleString('es-PA')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--color-muted)]">Aún no has descargado nada.</p>
+          )}
+        </section>
+
+        <section>
+          <h2 className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wider mb-3">
+            Historial de pagos
+          </h2>
+          {payments.length > 0 ? (
+            <ul className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] divide-y divide-[var(--color-border)]">
+              {payments.map((p) => (
+                <li key={p.id} className="px-6 py-4 flex items-center justify-between text-sm">
+                  <span>${(p.amountCents / 100).toFixed(2)} {p.currency}</span>
+                  <span className="text-[var(--color-muted)]">{p.provider}</span>
+                  <span className={
+                    p.status === 'SUCCEEDED' ? 'text-green-400' :
+                    p.status === 'FAILED' || p.status === 'REJECTED' ? 'text-red-400' :
+                    'text-[var(--color-muted)]'
+                  }>
+                    {p.status}
+                  </span>
+                  <span className="text-[var(--color-muted)]">
+                    {new Date(p.createdAt).toLocaleDateString('es-PA')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-[var(--color-muted)]">Sin pagos registrados.</p>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

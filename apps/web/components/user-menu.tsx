@@ -21,6 +21,7 @@ function initials(name: string | null, email: string | null): string {
 
 export function UserMenu({ name, email, image, role }: Props) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,21 +36,44 @@ export function UserMenu({ name, email, image, role }: Props) {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 rounded-full hover:bg-white/5 p-1 transition-colors"
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="relative rounded-full p-0.5 transition-transform hover:scale-105 active:scale-95"
         aria-label="Menú de usuario"
       >
+        {/* Anillo luminoso hover */}
+        <span
+          className={`absolute inset-0 rounded-full transition-all duration-300 ${
+            hover || open
+              ? 'opacity-100 scale-110 shadow-[0_0_20px_4px_rgba(249,115,22,0.5)]'
+              : 'opacity-0 scale-100'
+          }`}
+          style={{
+            background: 'radial-gradient(circle, rgba(249,115,22,0.4) 0%, transparent 70%)',
+          }}
+        />
         {image ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={image} alt={name ?? 'avatar'} className="w-8 h-8 rounded-full object-cover" />
+          <img
+            src={image}
+            alt={name ?? 'avatar'}
+            className={`relative w-9 h-9 rounded-full object-cover ring-2 transition-all ${
+              hover || open ? 'ring-[var(--color-accent)]' : 'ring-transparent'
+            }`}
+          />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-[var(--color-accent)] text-white text-xs font-semibold flex items-center justify-center">
+          <div
+            className={`relative w-9 h-9 rounded-full bg-[var(--color-accent)] text-white text-xs font-semibold flex items-center justify-center ring-2 transition-all ${
+              hover || open ? 'ring-[var(--color-accent)]' : 'ring-transparent'
+            }`}
+          >
             {initials(name, email)}
           </div>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl overflow-hidden z-50">
+        <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
           {/* Header con foto + nombre */}
           <div className="px-4 py-4 border-b border-[var(--color-border)] flex items-center gap-3">
             {image ? (
@@ -81,7 +105,7 @@ export function UserMenu({ name, email, image, role }: Props) {
               <span>👤</span>
               <div>
                 <p className="font-medium">Mi perfil</p>
-                <p className="text-xs text-[var(--color-muted)]">Nombre y datos personales</p>
+                <p className="text-xs text-[var(--color-muted)]">Datos personales</p>
               </div>
             </Link>
             <Link
@@ -91,22 +115,36 @@ export function UserMenu({ name, email, image, role }: Props) {
             >
               <span>🔒</span>
               <div>
-                <p className="font-medium">Cambiar contraseña</p>
-                <p className="text-xs text-[var(--color-muted)]">Actualiza tu clave de acceso</p>
+                <p className="font-medium">Seguridad</p>
+                <p className="text-xs text-[var(--color-muted)]">Contraseña y acceso</p>
+              </div>
+            </Link>
+            <Link
+              href="/planes"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+            >
+              <span>💳</span>
+              <div>
+                <p className="font-medium">Planes</p>
+                <p className="text-xs text-[var(--color-muted)]">Suscripción y pagos</p>
               </div>
             </Link>
             {role === 'ADMIN' && (
-              <Link
-                href="/admin"
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
-              >
-                <span>⚙️</span>
-                <div>
-                  <p className="font-medium">Panel admin</p>
-                  <p className="text-xs text-[var(--color-muted)]">Gestión de la plataforma</p>
-                </div>
-              </Link>
+              <>
+                <div className="my-1 border-t border-[var(--color-border)]" />
+                <Link
+                  href="/admin"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+                >
+                  <span>⚙️</span>
+                  <div>
+                    <p className="font-medium">Panel de control</p>
+                    <p className="text-xs text-[var(--color-muted)]">Administración</p>
+                  </div>
+                </Link>
+              </>
             )}
           </div>
 

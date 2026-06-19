@@ -1,8 +1,7 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { prisma } from '@academia/db';
-import { UserMenu } from '@/components/user-menu';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,22 +16,10 @@ export default async function SeguridadPage() {
   const hasPassword = !!userWithHash.passwordHash;
 
   return (
-    <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-12">
-        <Link href="/dashboard" className="text-xl font-bold">
-          📚 Mavim <span className="text-[var(--color-accent)]">Biblioteca de Archivos</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/archivos" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)]">Archivos</Link>
-          <Link href="/academia" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)]">Academia</Link>
-          {user.role === 'ADMIN' && (
-            <Link href="/admin" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]">Admin</Link>
-          )}
-          <UserMenu name={user.name} email={user.email} image={user.image} role={user.role} />
-        </div>
-      </div>
-
-      <h1 className="text-3xl font-bold mb-2">🔒 Seguridad de la cuenta</h1>
+    <>
+      <TopNav />
+      <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">🔒 Seguridad de la cuenta</h1>
       <p className="text-sm text-[var(--color-muted)] mb-8">Gestiona cómo accedes a tu cuenta</p>
 
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-6 max-w-xl space-y-4">
@@ -76,6 +63,7 @@ export default async function SeguridadPage() {
           </div>
         )}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

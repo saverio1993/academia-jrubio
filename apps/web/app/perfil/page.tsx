@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
-import { UserMenu } from '@/components/user-menu';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,29 +19,10 @@ export default async function PerfilPage() {
   if (!user) redirect('/');
 
   return (
-    <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
-      {/* Navbar superior */}
-      <div className="flex items-center justify-between mb-12">
-        <Link href="/dashboard" className="text-xl font-bold">
-          📚 Mavim <span className="text-[var(--color-accent)]">Biblioteca de Archivos</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/archivos" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)]">
-            Archivos
-          </Link>
-          <Link href="/academia" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)]">
-            Academia
-          </Link>
-          {user.role === 'ADMIN' && (
-            <Link href="/admin" className="text-sm text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]">
-              Admin
-            </Link>
-          )}
-          <UserMenu name={user.name} email={user.email} image={user.image} role={user.role} />
-        </div>
-      </div>
-
-      <h1 className="text-3xl font-bold mb-2">Mi perfil</h1>
+    <>
+      <TopNav />
+      <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
+        <h1 className="text-3xl font-bold mb-2">Mi perfil</h1>
       <p className="text-sm text-[var(--color-muted)] mb-8">Tu información personal y cuenta</p>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -104,6 +85,7 @@ export default async function PerfilPage() {
           </div>
         </div>
       </div>
-    </main>
+      </main>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
 import { RevealOnScroll } from './_components/reveal';
+import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,8 @@ export default async function HomePage() {
       <div className="glow g2" />
       <div className="glow g3" />
 
+      {logged && <TopNav />}
+
       <nav>
         <div className="navin">
           <div className="logo">
@@ -48,9 +51,7 @@ export default async function HomePage() {
             <a href="#opiniones">Opiniones</a>
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
-            {logged ? (
-              <Link className="btn btn-ghost" href="/dashboard">Mi cuenta</Link>
-            ) : (
+            {!logged && (
               <Link className="btn btn-ghost" href="/signin">Iniciar sesión</Link>
             )}
             <Link className="btn btn-primary" href="/planes">Suscríbete</Link>
