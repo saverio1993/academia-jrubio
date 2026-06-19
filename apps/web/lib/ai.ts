@@ -5,7 +5,8 @@
 // - Timeout
 // - Validación de output
 
-const MINIMAX_ENDPOINT = process.env.MINIMAX_ENDPOINT || 'https://api.minimaxi.chat/v1/text/chatcompletion_v2';
+const MINIMAX_ENDPOINT = process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1';
+const MINIMAX_MODEL = process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed';
 const MINIMAX_API_KEY = process.env.MINIMAX_API_KEY;
 
 interface ChatMessage {
@@ -80,7 +81,7 @@ export async function callMinimax({ query, context, history, userId }: ChatOptio
         Authorization: `Bearer ${MINIMAX_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'MiniMax-Text-01',
+        model: MINIMAX_MODEL,
         messages,
         max_tokens: 500,
         temperature: 0.3,
@@ -91,12 +92,13 @@ export async function callMinimax({ query, context, history, userId }: ChatOptio
     if (!res.ok) {
       const text = await res.text();
       console.error('[Minimax error]', res.status, text.substring(0, 300));
-      throw new Error(`Minimax API error: ${res.status}`);
+      throw new Error(`Minimax API ${res.status}: ${text.substring(0, 200)}`);
     }
 
     const data = await res.json();
     const reply = data?.choices?.[0]?.message?.content;
     if (!reply) {
+      console.error('[Minimax no reply]', JSON.stringify(data).substring(0, 500));
       throw new Error('Minimax no devolvió respuesta');
     }
 
