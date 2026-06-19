@@ -3,8 +3,6 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { prisma } from '@academia/db';
-import { invalidateAICache } from '@/lib/ai';
 import { z } from 'zod';
 
 async function requireAdmin() {
@@ -17,8 +15,6 @@ async function requireAdmin() {
 }
 
 const AIConfigSchema = z.object({
-  provider: z.enum(['minimax', 'openai', 'anthropic', 'gemini']),
-  apiKey: z.string().optional().default(''),
   endpoint: z.string().url('Endpoint inválido'),
   model: z.string().min(1, 'Modelo requerido'),
   systemPrompt: z.string().min(10, 'System prompt muy corto'),
@@ -29,11 +25,11 @@ const AIConfigSchema = z.object({
 });
 
 export async function updateAIConfig(formData: FormData) {
-  const admin = await requireAdmin();
+  // El panel admin es READ-ONLY desde la versión env-vars.
+  // Para cambiar config real, edita las env vars en Vercel y haz redeploy.
+  await requireAdmin();
 
   const parsed = AIConfigSchema.safeParse({
-    provider: formData.get('provider'),
-    apiKey: formData.get('apiKey'),
     endpoint: formData.get('endpoint'),
     model: formData.get('model'),
     systemPrompt: formData.get('systemPrompt'),
@@ -47,51 +43,50 @@ export async function updateAIConfig(formData: FormData) {
     throw new Error(parsed.error.errors.map((e) => e.message).join(', '));
   }
 
-  await prisma.aIConfig.upsert({
-    where: { id: 'default' },
-    create: { id: 'default', ...parsed.data, updatedBy: admin.id },
-    update: { ...parsed.data, updatedBy: admin.id },
-  });
-
-  invalidateAICache();
+  // No persiste en BD. Mostramos un mensaje informativo.
   revalidatePath('/admin/ia');
 }
 
 export async function testAIConnection(formData: FormData) {
   await requireAdmin();
 
-  const apiKey = formData.get('apiKey') as string;
-  const endpoint = formData.get('endpoint') as string;
-  const model = formData.get('model') as string;
+  const apiKey = (formData.get('apiKey') as string) || process.env.MINIMAX_API_KEY || '';
+  const endpoint = (formData.get('endpoint') as string) || process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1';
+  const model = (formData.get('model') as string) || process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed';
 
-  if (!apiKey || !endpoint || !model) {
-    throw new Error('Completa endpoint, modelo y API key');
+  if (!apiKey) {
+    throw new Error('Falta MINIMAX_API_KEY en Vercel Environment Variables');
   }
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: 'Responde solo con OK' }],
-      max_tokens: 10,
-    }),
-  });
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'Responde solo con OK' }],
+        max_tokens: 10,
+      }),
+    });
 
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`${res.status}: ${text.substring(0, 200)}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`${res.status}: ${text.substring(0, 200)}`);
+    }
+
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      throw new Error('API respondió pero sin contenido válido');
+    }
+
+    // Log en consola del servidor (visible en Vercel logs)
+    console.log(`[AI test OK] ${content}`);
+    revalidatePath('/admin/ia');
+  } catch (e) {
+    throw new Error(`Error: ${e instanceof Error ? e.message : 'desconocido'}`);
   }
-
-  const data = await res.json();
-  if (!data?.choices?.[0]?.message?.content) {
-    throw new Error('API respondió pero sin contenido válido');
-  }
-
-  // Redirigir con un query param de éxito
-  revalidatePath('/admin/ia');
-  return data.choices[0].message.content;
 }

@@ -1,5 +1,5 @@
-// Wrapper de IA. Lee config de la BD (AIConfig) y usa env vars como fallback.
-// Permite gestionar token/modelo/prompt desde el panel admin sin redeploy.
+// Wrapper de IA. Lee config SOLO de env vars (panel admin es read-only).
+// Cambiar token/modelo/prompt requiere editar env vars en Vercel y redeploy.
 import { prisma } from '@academia/db';
 
 interface ChatMessage {
@@ -24,6 +24,7 @@ interface AIConfig {
   maxTokens: number;
   temperature: number;
   rateLimit: number;
+  source: 'env'; // siempre env, ya no BD
 }
 
 const DEFAULT_SYSTEM_PROMPT = `Eres el asistente de búsqueda de la "Academia J Rubio", una plataforma para técnicos de teléfonos móviles.
@@ -47,59 +48,44 @@ IDIOMA: Responde en español, tono amigable y profesional, breve y al grano.`;
 
 const TIMEOUT_MS = 30_000;
 
-// Cache de config (5 segundos) para no pegar a la BD en cada request
-let cachedConfig: { value: AIConfig; expires: number } | null = null;
+// Cache de config (5 segundos) para no leer env vars en cada request
+let cachedConfig: { value: AIConfig | null; expires: number } | null = null;
 async function getAIConfig(): Promise<AIConfig | null> {
   const now = Date.now();
   if (cachedConfig && cachedConfig.expires > now) {
     return cachedConfig.value;
   }
 
-  try {
-    const row = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
-    if (row) {
-      // Si no tiene apiKey en BD, usar env var
-      const config: AIConfig = {
-        provider: row.provider,
-        apiKey: row.apiKey || process.env.MINIMAX_API_KEY || '',
-        endpoint: row.endpoint || process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1',
-        model: row.model || process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed',
-        systemPrompt: row.systemPrompt || DEFAULT_SYSTEM_PROMPT,
-        enabled: row.enabled,
-        maxTokens: row.maxTokens,
-        temperature: row.temperature,
-        rateLimit: row.rateLimit,
-      };
-      cachedConfig = { value: config, expires: now + 5000 };
-      return config;
-    }
-  } catch (e) {
-    // Si la tabla no existe aún, usar env vars
-    console.warn('[ai] AIConfig table not available, using env vars');
+  const apiKey = process.env.MINIMAX_API_KEY;
+  if (!apiKey) {
+    cachedConfig = { value: null, expires: now + 5000 };
+    return null;
   }
 
-  // Fallback a env vars
-  if (!process.env.MINIMAX_API_KEY) return null;
-  return {
+  const config: AIConfig = {
     provider: 'minimax',
-    apiKey: process.env.MINIMAX_API_KEY,
+    apiKey,
     endpoint: process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1',
     model: process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed',
-    systemPrompt: DEFAULT_SYSTEM_PROMPT,
-    enabled: true,
-    maxTokens: 500,
-    temperature: 0.3,
-    rateLimit: 30,
+    systemPrompt: process.env.MINIMAX_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT,
+    enabled: process.env.MINIMAX_ENABLED !== 'false', // default true
+    maxTokens: parseInt(process.env.MINIMAX_MAX_TOKENS || '500', 10),
+    temperature: parseFloat(process.env.MINIMAX_TEMPERATURE || '0.3'),
+    rateLimit: parseInt(process.env.MINIMAX_RATE_LIMIT || '30', 10),
+    source: 'env',
   };
+
+  cachedConfig = { value: config, expires: now + 5000 };
+  return config;
 }
 
 export async function callAI({ query, context, history, userId }: ChatOptions): Promise<string> {
   const config = await getAIConfig();
   if (!config || !config.apiKey) {
-    throw new Error('IA no configurada. Ve a Admin > Asistente de IA y configura el token.');
+    throw new Error('IA no configurada. Configura MINIMAX_API_KEY en Vercel > Environment Variables.');
   }
   if (!config.enabled) {
-    throw new Error('El asistente de IA está deshabilitado. Actívalo en Admin > Asistente de IA.');
+    throw new Error('El asistente de IA está deshabilitado. Actívalo (MINIMAX_ENABLED=true) en Vercel.');
   }
 
   const messages: ChatMessage[] = [
@@ -184,4 +170,9 @@ export function checkRateLimit(userId: string, maxPerMin = 30): boolean {
 
 export function invalidateAICache() {
   cachedConfig = null;
+}
+
+// Helper para el panel admin (read-only)
+export async function getAIConfigReadOnly() {
+  return getAIConfig();
 }

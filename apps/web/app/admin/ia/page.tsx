@@ -1,8 +1,8 @@
 import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
-import { prisma } from '@academia/db';
 import { PageHeader, Card, Field, inputCls } from '../_components/ui';
 import { updateAIConfig, testAIConnection } from './actions';
+import { getAIConfigReadOnly } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,102 +11,73 @@ export default async function IAPage() {
   if (!session?.user?.id) redirect('/signin?callbackUrl=/admin/ia');
   if (session.user.role !== 'ADMIN') redirect('/');
 
-  // Cargar config con manejo de errores
-  let config = null;
-  let loadError = null;
-  try {
-    config = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
-  } catch (e) {
-    loadError = e instanceof Error ? e.message : 'Error desconocido';
-  }
+  // Cargar config desde env vars (read-only, no toca BD)
+  const config = await getAIConfigReadOnly();
+  const hasKey = !!config?.apiKey;
+  const enabled = config?.enabled ?? false;
+  const endpoint = config?.endpoint ?? 'https://api.minimax.io/v1';
+  const model = config?.model ?? 'MiniMax-M2.7-highspeed';
+  const systemPrompt = config?.systemPrompt ?? '';
+  const maxTokens = config?.maxTokens ?? 500;
+  const temperature = config?.temperature ?? 0.3;
+  const rateLimit = config?.rateLimit ?? 30;
 
-  if (!config) {
-    try {
-      config = await prisma.aIConfig.create({
-        data: {
-          id: 'default',
-        },
-      });
-    } catch (e) {
-      return (
-        <>
-          <PageHeader title="Asistente de IA" />
-          <Card className="p-6">
-            <h2 className="font-semibold text-red-400 mb-2">Error al cargar la configuración</h2>
-            <p className="text-sm text-[var(--color-muted)] mb-4">
-              No se pudo acceder a la tabla <code>AIConfig</code> de la base de datos.
-            </p>
-            <p className="text-xs text-red-300 font-mono">
-              {loadError || 'Desconocido'}
-            </p>
-            <p className="text-sm mt-4">
-              Posibles causas:
-            </p>
-            <ul className="text-sm text-[var(--color-muted)] list-disc pl-6 mt-2 space-y-1">
-              <li>El build de Vercel no incluyó el último modelo de Prisma. Espera unos minutos al redeploy.</li>
-              <li>La migración no se aplicó. Ejecuta en tu consola: <code className="text-xs">cd packages/db && npx prisma migrate deploy</code></li>
-            </ul>
-          </Card>
-        </>
-      );
-    }
-  }
+  // Máscara del token para mostrar
+  const maskedKey = hasKey
+    ? `${config!.apiKey.substring(0, 7)}...${config!.apiKey.substring(config!.apiKey.length - 4)}`
+    : '— (no configurado)';
 
   return (
     <>
       <PageHeader
         title="Asistente de IA"
-        subtitle="Configura el chat de búsqueda con IA. Los cambios se aplican al instante."
+        subtitle="Configuración en modo lectura (Vercel Environment Variables)."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-6">
-          <h2 className="font-semibold mb-4">Configuración</h2>
+          <h2 className="font-semibold mb-4">Configuración actual</h2>
+
+          <div className="mb-4 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-3">
+            <p className="text-sm font-medium text-[var(--color-accent)]">
+              Modo lectura: edita los valores en Vercel &gt; Settings &gt; Environment Variables y haz redeploy.
+            </p>
+          </div>
+
           <form action={updateAIConfig} className="space-y-4">
             <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] bg-white/5 px-4 py-3">
               <div>
                 <p className="font-medium">Asistente activo</p>
                 <p className="text-xs text-[var(--color-muted)]">
-                  {config.enabled ? 'Los usuarios pueden chatear con la IA' : 'Chat deshabilitado temporalmente'}
+                  {enabled ? 'Los usuarios pueden chatear con la IA' : 'Chat deshabilitado temporalmente'}
                 </p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   name="enabled"
-                  defaultChecked={config.enabled}
+                  defaultChecked={enabled}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--color-accent)]"></div>
               </label>
             </div>
 
-            <Field
-              name="provider"
-              label="Proveedor"
-              type="select"
-              defaultValue={config.provider}
-              options={[
-                { value: 'minimax', label: 'Minimax (Minimax.io)' },
-                { value: 'openai', label: 'OpenAI' },
-                { value: 'anthropic', label: 'Anthropic' },
-                { value: 'gemini', label: 'Google Gemini' },
-              ]}
-            />
-
-            <Field
-              name="apiKey"
-              label="API Key (token)"
-              type="password"
-              placeholder="sk-... o sk-cp-..."
-              defaultValue={config.apiKey}
-            />
+            <div>
+              <label className={inputCls + ' block'}>API Key (token)</label>
+              <div className="rounded-lg border border-[var(--color-border)] bg-white/5 px-3 py-2 text-sm font-mono">
+                {maskedKey}
+              </div>
+              <p className="text-xs text-[var(--color-muted)] mt-1">
+                Variable: <code className="text-[var(--color-fg)]">MINIMAX_API_KEY</code>
+              </p>
+            </div>
 
             <Field
               name="endpoint"
               label="Endpoint URL"
               type="text"
-              defaultValue={config.endpoint}
+              defaultValue={endpoint}
               placeholder="https://api.minimax.io/v1"
             />
 
@@ -114,7 +85,7 @@ export default async function IAPage() {
               name="model"
               label="Modelo"
               type="text"
-              defaultValue={config.model}
+              defaultValue={model}
               placeholder="MiniMax-M2.7-highspeed"
             />
 
@@ -122,7 +93,7 @@ export default async function IAPage() {
               name="systemPrompt"
               label="System Prompt (instrucciones para la IA)"
               type="textarea"
-              defaultValue={config.systemPrompt}
+              defaultValue={systemPrompt}
               rows={8}
             />
 
@@ -131,7 +102,7 @@ export default async function IAPage() {
                 name="maxTokens"
                 label="Max tokens"
                 type="number"
-                defaultValue={String(config.maxTokens)}
+                defaultValue={String(maxTokens)}
                 min={50}
                 max={4000}
               />
@@ -139,7 +110,7 @@ export default async function IAPage() {
                 name="temperature"
                 label="Temperatura"
                 type="number"
-                defaultValue={String(config.temperature)}
+                defaultValue={String(temperature)}
                 min={0}
                 max={2}
                 step={0.1}
@@ -148,7 +119,7 @@ export default async function IAPage() {
                 name="rateLimit"
                 label="Rate limit /min"
                 type="number"
-                defaultValue={String(config.rateLimit)}
+                defaultValue={String(rateLimit)}
                 min={1}
                 max={500}
               />
@@ -156,9 +127,12 @@ export default async function IAPage() {
 
             <div className="flex gap-2 pt-2">
               <button className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]">
-                Guardar cambios
+                Validar formulario
               </button>
             </div>
+            <p className="text-xs text-[var(--color-muted)]">
+              Este botón solo valida que los valores sean correctos. Para aplicarlos, edita las env vars de Vercel.
+            </p>
           </form>
         </Card>
 
@@ -166,41 +140,39 @@ export default async function IAPage() {
           <Card className="p-6">
             <h2 className="font-semibold mb-2">Probar conexión</h2>
             <p className="text-xs text-[var(--color-muted)] mb-4">
-              Envía un mensaje de prueba a la API con los valores actuales del formulario.
+              Envía un mensaje de prueba a la API con los valores actuales (env vars).
             </p>
             <form action={testAIConnection} className="space-y-3">
-              <input type="hidden" name="apiKey" defaultValue={config.apiKey} />
-              <input type="hidden" name="endpoint" defaultValue={config.endpoint} />
-              <input type="hidden" name="model" defaultValue={config.model} />
+              <input type="hidden" name="apiKey" defaultValue={config?.apiKey ?? ''} />
+              <input type="hidden" name="endpoint" defaultValue={endpoint} />
+              <input type="hidden" name="model" defaultValue={model} />
               <button className="w-full rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-2 text-sm font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20">
                 Probar ahora
               </button>
               <p className="text-xs text-[var(--color-muted)]">
-                Si la API responde correctamente, el resultado se mostrará en la consola del navegador.
+                El resultado se mostrará en la consola del navegador (F12).
               </p>
             </form>
           </Card>
 
           <Card className="p-6">
-            <h2 className="font-semibold mb-2">Última actualización</h2>
-            <p className="text-xs text-[var(--color-muted)]">
-              {config.updatedAt ? new Date(config.updatedAt).toLocaleString('es-PA') : '—'}
+            <h2 className="font-semibold mb-2">Variables de entorno en Vercel</h2>
+            <p className="text-xs text-[var(--color-muted)] mb-3">
+              Configura estas variables en Vercel &gt; Settings &gt; Environment Variables:
             </p>
-            <p className="text-xs text-[var(--color-muted)] mt-2">
-              El chat en /archivos refleja esta configuración en menos de 5 segundos.
+            <ul className="text-xs font-mono space-y-1.5 text-[var(--color-fg)]">
+              <li><span className="text-[var(--color-accent)]">MINIMAX_API_KEY</span>=sk-cp-...</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_ENDPOINT</span>={endpoint}</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_MODEL</span>={model}</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_ENABLED</span>=true</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_MAX_TOKENS</span>={String(maxTokens)}</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_TEMPERATURE</span>={String(temperature)}</li>
+              <li><span className="text-[var(--color-accent)]">MINIMAX_RATE_LIMIT</span>={String(rateLimit)}</li>
+              <li className="text-[var(--color-muted)]">MINIMAX_SYSTEM_PROMPT=(opcional, multilinea)</li>
+            </ul>
+            <p className="text-xs text-[var(--color-muted)] mt-3">
+              Después de cambiar una env var, haz redeploy (Vercel &gt; Deployments &gt; Redeploy).
             </p>
-          </Card>
-
-          <Card className="p-6">
-            <h2 className="font-semibold mb-2">Cómo configurar Minimax</h2>
-            <ol className="text-xs text-[var(--color-muted)] space-y-1.5 list-decimal pl-4">
-              <li>Endpoint: <code className="text-[var(--color-fg)]">https://api.minimax.io/v1</code></li>
-              <li>Modelo: <code className="text-[var(--color-fg)]">MiniMax-M2.7-highspeed</code></li>
-              <li>API Key: empieza con <code className="text-[var(--color-fg)]">sk-cp-</code></li>
-              <li>Marca "Asistente activo" en ON</li>
-              <li>Click "Guardar cambios"</li>
-              <li>Vuelve a /archivos y prueba el chat</li>
-            </ol>
           </Card>
         </div>
       </div>
