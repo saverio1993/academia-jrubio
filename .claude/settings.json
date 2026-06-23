@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(Get-Item *)",
+      "PowerShell(Get-Command *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(pnpm --version)",
+      "PowerShell(pnpm dev *)",
+      "PowerShell(pnpm install *)",
+      "PowerShell(pnpm build *)",
+      "PowerShell(git push *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(Start-Sleep *)",
+      "PowerShell(curl *)"
+    ]
+  }
+}
