@@ -63,16 +63,16 @@ export function MobileMenu({ logged, role }: MobileMenuProps) {
               <Link
                 href="/archivos"
                 onClick={close}
-                className="rounded-lg px-3 py-3 text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:bg-[var(--color-card)] transition-colors"
+                className="rounded-lg px-3 py-3 text-sm font-semibold text-[var(--color-fg)] bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
               >
-                Archivos
+                📦 Archivos
               </Link>
               <Link
                 href="/academia"
                 onClick={close}
-                className="rounded-lg px-3 py-3 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-card)] transition-colors"
+                className="rounded-lg px-3 py-3 text-sm font-semibold text-white bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] transition-colors"
               >
-                Academia
+                🎓 Academia
               </Link>
               <Link
                 href="/planes"

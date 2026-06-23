@@ -37,26 +37,32 @@ export async function TopNav() {
           </div>
         </Link>
 
-        {/* Centro: Archivos + Academia (en naranja) */}
-        <nav className="hidden md:flex items-center gap-5 text-sm flex-1 justify-center">
+        {/* Centro: Archivos + Academia */}
+        <nav className="hidden md:flex items-center gap-3 text-sm flex-1 justify-center">
           {logged ? (
             <>
-              <Link href="/archivos" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">
-                Archivos
+              <Link
+                href="/archivos"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)] text-[var(--color-fg)] px-4 py-1.5 font-semibold transition-all"
+              >
+                📦 Archivos
               </Link>
               <Link
                 href="/academia"
-                className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors font-medium"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-4 py-1.5 font-semibold transition-all"
               >
-                Academia
+                🎓 Academia
               </Link>
             </>
           ) : (
             <>
-              <a href="#beneficios" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Beneficios</a>
-              <a href="#planes" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors">Planes</a>
-              <Link href="/academia" className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors font-medium">
-                Academia
+              <a href="#beneficios" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2">Beneficios</a>
+              <a href="#planes" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2">Planes</a>
+              <Link
+                href="/academia"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-4 py-1.5 font-semibold transition-all"
+              >
+                🎓 Academia
               </Link>
             </>
           )}
