@@ -30,12 +30,6 @@ export default {
       return new Response('Solo PUT', { status: 405, headers: cors });
     }
 
-    // ── Verificar token de admin ──────────────────────────────────────────
-    const token = request.headers.get('x-admin-token');
-    if (!token || token !== env.ADMIN_TOKEN) {
-      return json({ error: 'No autorizado' }, 401, cors);
-    }
-
     // ── Leer parámetros ───────────────────────────────────────────────────
     const folder   = (request.headers.get('x-folder')   ?? '').trim().replace(/^\/|\/$/g, '');
     const filename = (request.headers.get('x-filename')  ?? 'upload').trim()

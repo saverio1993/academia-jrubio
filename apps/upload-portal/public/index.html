@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Academia J Rubio — Portal de Archivos</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --card:    #23263a;
+      --border:  #2e3148;
+      --accent:  #e87c1e;
+      --accent2: #f9a54b;
+      --fg:      #e8eaf0;
+      --muted:   #6b7280;
+      --green:   #22c55e;
+      --red:     #ef4444;
+      --radius:  12px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%;
+      max-width: 640px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .logo-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 700; }
+    header p  { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 640px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+    }
+    .card + .card { margin-top: 16px; }
+
+    h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--fg); }
+
+    /* ── Form elements ── */
+    label {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+    input[type="text"],
+    input[type="password"],
+    select {
+      width: 100%;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.9rem;
+      color: var(--fg);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+
+    .field { margin-bottom: 16px; }
+
+    /* ── Quick folder buttons ── */
+    .quick-folders {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .qf-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .qf-btn:hover { border-color: var(--accent); color: var(--accent2); }
+
+    /* ── File drop zone ── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .dropzone:hover,
+    .dropzone.drag-over { border-color: var(--accent); background: rgba(232,124,30,0.04); }
+    .dropzone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .dropzone-icon { font-size: 2rem; margin-bottom: 8px; }
+    .dropzone-text { font-size: 0.85rem; color: var(--muted); }
+    .dropzone-text strong { color: var(--fg); }
+    .file-info {
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: var(--card);
+      border-radius: 8px;
+      font-size: 0.82rem;
+      color: var(--fg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-size { color: var(--muted); font-size: 0.78rem; }
+
+    /* ── Progress ── */
+    .progress-wrap { margin-top: 16px; display: none; }
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 8px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 999px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .progress-label { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+
+    /* ── Button ── */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+      margin-top: 16px;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent2); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ghost {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--fg); }
+
+    /* ── Alerts ── */
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-top: 12px;
+    }
+    .alert-success {
+      background: rgba(34,197,94,0.1);
+      border: 1px solid rgba(34,197,94,0.3);
+      color: var(--green);
+    }
+    .alert-error {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.3);
+      color: var(--red);
+    }
+    .storage-key {
+      margin-top: 8px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      background: var(--card);
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: var(--green);
+      word-break: break-all;
+      cursor: pointer;
+      border: 1px solid rgba(34,197,94,0.2);
+    }
+    .storage-key:hover { border-color: var(--green); }
+    .copy-hint { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Auth gate ── */
+    #auth-gate { display: block; }
+    #uploader   { display: none; }
+
+    /* ── Divider ── */
+    .divider {
+      height: 1px;
+      background: var(--border);
+      margin: 20px 0;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 32px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">📁</div>
+  <div>
+    <h1>Academia J Rubio</h1>
+    <p>Portal de subida de archivos — directo a Nextcloud, sin límite de tamaño</p>
+  </div>
+</header>
+
+<!-- ── Auth gate ──────────────────────────────────────────────── -->
+<div class="card" id="auth-gate">
+  <h2>🔒 Acceso de administrador</h2>
+  <div class="field">
+    <label>Contraseña del portal</label>
+    <input type="password" id="token-input" placeholder="Ingresa la clave de acceso" />
+  </div>
+  <button class="btn btn-primary" onclick="doLogin()">Ingresar</button>
+  <div id="auth-error" class="alert alert-error" style="display:none"></div>
+</div>
+
+<!-- ── Upload panel ───────────────────────────────────────────── -->
+<div class="card" id="uploader">
+  <h2>📂 Carpeta destino en Nextcloud</h2>
+
+  <!-- Quick pickers -->
+  <div class="quick-folders" id="qf-brand">
+    <span style="font-size:0.72rem;color:var(--muted);align-self:center;">Marca:</span>
+    <button class="qf-btn" onclick="setFolder('Samsung')">Samsung</button>
+    <button class="qf-btn" onclick="setFolder('Xiaomi')">Xiaomi</button>
+    <button class="qf-btn" onclick="setFolder('Motorola')">Motorola</button>
+    <button class="qf-btn" onclick="setFolder('Huawei')">Huawei</button>
+    <button class="qf-btn" onclick="setFolder('Oppo')">Oppo</button>
+    <button class="qf-btn" onclick="setFolder('iPhone')">iPhone</button>
+    <button class="qf-btn" onclick="setFolder('LG')">LG</button>
+  </div>
+
+  <div class="quick-folders" id="qf-type">
+    <span style="font-size:0.72rem;color:var(--muted);align-self:center;">Tipo:</span>
+    <button class="qf-btn" onclick="appendFolder('Firmware')">Firmware</button>
+    <button class="qf-btn" onclick="appendFolder('FRP')">FRP</button>
+    <button class="qf-btn" onclick="appendFolder('Drivers')">Drivers</button>
+    <button class="qf-btn" onclick="appendFolder('Schematics')">Schematics</button>
+    <button class="qf-btn" onclick="appendFolder('Tools')">Tools</button>
+    <button class="qf-btn" onclick="setFolder('Herramientas')">Herramientas</button>
+    <button class="qf-btn" onclick="setFolder('Tutoriales')">Tutoriales</button>
+  </div>
+
+  <div class="field" style="margin-top:10px;">
+    <label>Ruta completa de carpeta *</label>
+    <input type="text" id="folder-input" placeholder="Samsung/A55/Firmware" list="folder-suggestions" />
+    <datalist id="folder-suggestions">
+      <option value="Samsung/Firmware"><option value="Samsung/FRP">
+      <option value="Samsung/Drivers"><option value="Xiaomi/Firmware">
+      <option value="Xiaomi/FRP"><option value="Motorola/Firmware">
+      <option value="Huawei/Firmware"><option value="Oppo/Firmware">
+      <option value="iPhone/Firmware"><option value="Herramientas">
+      <option value="Drivers"><option value="Tutoriales">
+    </datalist>
+  </div>
+
+  <div class="divider"></div>
+
+  <h2>⬆ Archivo a subir</h2>
+
+  <!-- Drop zone -->
+  <div class="dropzone" id="dropzone"
+       ondragover="handleDragOver(event)"
+       ondragleave="handleDragLeave(event)"
+       ondrop="handleDrop(event)">
+    <input type="file" id="file-input" onchange="handleFileSelect(event)" />
+    <div class="dropzone-icon">📦</div>
+    <div class="dropzone-text">
+      <strong>Arrastra el archivo aquí</strong><br>
+      o haz clic para seleccionar — cualquier tamaño
+    </div>
+  </div>
+
+  <div class="file-info" id="file-info" style="display:none">
+    <span id="file-name-display"></span>
+    <span class="file-size" id="file-size-display"></span>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill"></div>
+    </div>
+    <p class="progress-label" id="progress-label">Preparando…</p>
+  </div>
+
+  <button class="btn btn-primary" id="upload-btn" onclick="doUpload()" disabled>
+    ⬆ Subir archivo a Nextcloud
+  </button>
+  <button class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
+
+  <!-- Result -->
+  <div id="result"></div>
+</div>
+
+<footer>Academia J Rubio · Portal de archivos · Sube directo a cloud.heyvalue.com</footer>
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let token    = sessionStorage.getItem('upload_token') ?? '';
+  let selectedFile = null;
+
+  // Mostrar uploader si ya hay token guardado
+  if (token) showUploader();
+
+  // ── Auth ───────────────────────────────────────────────────────────────────
+  document.getElementById('token-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+
+  async function doLogin() {
+    const input = document.getElementById('token-input').value.trim();
+    if (!input) return;
+
+    // Verificar contra el servidor
+    try {
+      const res = await fetch('/upload?folder=.check&filename=.ping', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + input, 'Content-Type': 'text/plain', 'Content-Length': '0' },
+        body: '',
+      });
+      // 401 = clave incorrecta, cualquier otra cosa = clave correcta
+      if (res.status === 401) {
+        document.getElementById('auth-error').textContent = 'Contraseña incorrecta';
+        document.getElementById('auth-error').style.display = 'block';
+        return;
+      }
+    } catch {
+      // Error de red — intentar de todos modos (puede ser CORS, etc.)
+    }
+
+    token = input;
+    sessionStorage.setItem('upload_token', token);
+    showUploader();
+  }
+
+  function showUploader() {
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('uploader').style.display  = 'block';
+  }
+
+  // ── Folder helpers ─────────────────────────────────────────────────────────
+  function setFolder(val) {
+    document.getElementById('folder-input').value = val;
+  }
+  function appendFolder(sub) {
+    const current = document.getElementById('folder-input').value.trim();
+    if (!current) {
+      document.getElementById('folder-input').value = sub;
+    } else {
+      // Si ya termina en /sub, no duplicar
+      if (!current.endsWith('/' + sub)) {
+        document.getElementById('folder-input').value = current.replace(/\/[^\/]+$/, '') + '/' + sub;
+      }
+    }
+  }
+
+  // ── File drag & drop ───────────────────────────────────────────────────────
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('dropzone').classList.add('drag-over');
+  }
+  function handleDragLeave() {
+    document.getElementById('dropzone').classList.remove('drag-over');
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('dropzone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) selectFile(file);
+  }
+  function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) selectFile(file);
+  }
+
+  function selectFile(file) {
+    selectedFile = file;
+    document.getElementById('file-name-display').textContent = file.name;
+    document.getElementById('file-size-display').textContent = formatSize(file.size);
+    document.getElementById('file-info').style.display = 'flex';
+    document.getElementById('upload-btn').disabled = false;
+    document.getElementById('result').innerHTML = '';
+    document.getElementById('progress-wrap').style.display = 'none';
+    setProgress(0, '');
+  }
+
+  function formatSize(bytes) {
+    if (bytes < 1024)           return bytes + ' B';
+    if (bytes < 1024 * 1024)    return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024**3)        return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+    return (bytes / 1024**3).toFixed(2) + ' GB';
+  }
+
+  // ── Upload ─────────────────────────────────────────────────────────────────
+  function doUpload() {
+    const folder = document.getElementById('folder-input').value.trim();
+    if (!selectedFile) { showResult('error', 'Selecciona un archivo primero'); return; }
+    if (!folder)       { showResult('error', 'Escribe la carpeta destino'); return; }
+
+    const filename = selectedFile.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    const params   = new URLSearchParams({ folder, filename });
+    const url      = `/upload?${params}`;
+
+    document.getElementById('upload-btn').disabled = true;
+    document.getElementById('progress-wrap').style.display = 'block';
+    document.getElementById('result').innerHTML = '';
+    setProgress(0, 'Conectando…');
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setProgress(pct, `Subiendo… ${pct}% — ${formatSize(e.loaded)} de ${formatSize(e.total)}`);
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        setProgress(100, 'Completado');
+        showResult('success', data.storageKey);
+      } else {
+        let msg = `Error ${xhr.status}`;
+        try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch {}
+        showResult('error', msg);
+        document.getElementById('upload-btn').disabled = false;
+      }
+    };
+
+    xhr.onerror = () => {
+      showResult('error', 'Error de red — verifica tu conexión');
+      document.getElementById('upload-btn').disabled = false;
+    };
+
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+    xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
+    xhr.send(selectedFile);
+  }
+
+  function setProgress(pct, label) {
+    document.getElementById('progress-fill').style.width = pct + '%';
+    if (label) document.getElementById('progress-label').textContent = label;
+  }
+
+  function showResult(type, payload) {
+    const div = document.getElementById('result');
+    if (type === 'success') {
+      div.innerHTML = `
+        <div class="alert alert-success">
+          ✓ Archivo guardado correctamente en Nextcloud
+          <div class="storage-key" id="key-text" onclick="copyKey()" title="Clic para copiar">${payload}</div>
+          <p class="copy-hint">↑ Clic para copiar la ruta — pégala en el campo "Ruta" del panel admin</p>
+        </div>`;
+    } else {
+      div.innerHTML = `<div class="alert alert-error">✗ ${payload}</div>`;
+    }
+  }
+
+  function copyKey() {
+    const text = document.getElementById('key-text').textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      document.getElementById('key-text').textContent = '¡Copiado!';
+      setTimeout(() => { document.getElementById('key-text').textContent = text; }, 1500);
+    });
+  }
+
+  function resetForm() {
+    selectedFile = null;
+    document.getElementById('file-input').value = '';
+    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('progress-wrap').style.display = 'none';
+    document.getElementById('result').innerHTML = '';
+    document.getElementById('upload-btn').disabled = true;
+    setProgress(0, '');
+  }
+</script>
+</body>
+</html>
