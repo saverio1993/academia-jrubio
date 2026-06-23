@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@academia/db';
+import { getStorage } from '@academia/storage';
 import { revalidatePath } from 'next/cache';
 import { assertAdmin, logAudit } from '@/lib/admin';
 
@@ -11,15 +12,44 @@ function parseTags(raw: string): string[] {
     .filter(Boolean);
 }
 
+function safeSlug(s: string) {
+  return s.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '');
+}
+
 export async function createFile(formData: FormData) {
   const admin = await assertAdmin();
-  const title = String(formData.get('title') ?? '').trim();
-  const brand = String(formData.get('brand') ?? '').trim();
+  const title    = String(formData.get('title') ?? '').trim();
+  const brand    = String(formData.get('brand') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
-  const storageKey = String(formData.get('storageKey') ?? '').trim();
 
-  if (!title || !brand || !category || !storageKey) {
-    throw new Error('Faltan campos obligatorios (título, marca, categoría, ruta)');
+  if (!title || !brand || !category) {
+    throw new Error('Faltan campos obligatorios (título, marca, categoría)');
+  }
+
+  const uploadedFile = formData.get('file') as File | null;
+  let storageKey  = String(formData.get('storageKey') ?? '').trim();
+  let sizeBytes: bigint | null = null;
+  let mimeType: string | null  = null;
+
+  if (uploadedFile && uploadedFile.size > 0) {
+    const safeName  = safeSlug(uploadedFile.name) || 'archivo';
+    const safeBrand = safeSlug(brand);
+    const safeCat   = safeSlug(category);
+    storageKey = `${safeBrand}/${safeCat}/${Date.now()}_${safeName}`;
+
+    const buffer = Buffer.from(await uploadedFile.arrayBuffer());
+    const storage = getStorage();
+    const uploaded = await storage.upload({
+      key: storageKey,
+      body: buffer,
+      mimeType: uploadedFile.type || undefined,
+    });
+    sizeBytes = BigInt(uploaded.size);
+    mimeType  = uploadedFile.type || null;
+  }
+
+  if (!storageKey) {
+    throw new Error('Sube un archivo o ingresa la ruta de Nextcloud manualmente');
   }
 
   const created = await prisma.fileItem.create({
@@ -28,12 +58,14 @@ export async function createFile(formData: FormData) {
       brand,
       category,
       storageKey,
-      model: String(formData.get('model') ?? '').trim() || null,
+      sizeBytes,
+      mimeType,
+      model:       String(formData.get('model') ?? '').trim() || null,
       subcategory: String(formData.get('subcategory') ?? '').trim() || null,
-      version: String(formData.get('version') ?? '').trim() || null,
+      version:     String(formData.get('version') ?? '').trim() || null,
       description: String(formData.get('description') ?? '').trim() || null,
-      tags: parseTags(String(formData.get('tags') ?? '')),
-      isPremium: formData.get('isPremium') === 'on',
+      tags:        parseTags(String(formData.get('tags') ?? '')),
+      isPremium:   formData.get('isPremium') === 'on',
     },
   });
   await logAudit(admin.id, 'file.created', `file:${created.id}`, { title, brand });

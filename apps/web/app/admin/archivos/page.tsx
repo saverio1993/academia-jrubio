@@ -45,15 +45,33 @@ export default async function ArchivosPage({
           <Field name="model" label="Modelo" placeholder="A556B" />
           <Field name="subcategory" label="Subcategoría" placeholder="oficial" />
           <Field name="version" label="Versión" placeholder="A556BXXU5BWK1" />
-          <Field
-            name="storageKey"
-            label="Ruta en Nextcloud *"
-            placeholder="/samsung/a55/firmware.zip"
-            required
-            className="lg:col-span-2"
-          />
           <Field name="tags" label="Tags (separados por coma)" placeholder="frp, android 14" />
           <Field name="description" label="Descripción" placeholder="…" className="lg:col-span-3" />
+
+          {/* Subir archivo */}
+          <div className="lg:col-span-3 rounded-lg border-2 border-dashed border-[var(--color-border)] p-4">
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">
+                📁 Subir archivo a Nextcloud
+              </span>
+              <input
+                type="file"
+                name="file"
+                className="block w-full text-sm text-[var(--color-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--color-accent-hover)] file:cursor-pointer"
+              />
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                El archivo se sube automáticamente a Nextcloud. Si ya está en Nextcloud, usa la ruta manual abajo.
+              </p>
+            </label>
+          </div>
+
+          <Field
+            name="storageKey"
+            label="Ruta en Nextcloud (opcional si subes archivo)"
+            placeholder="/samsung/a55/firmware.zip"
+            className="lg:col-span-2"
+          />
+
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="isPremium" defaultChecked className="accent-[var(--color-accent)]" />
             Premium (requiere suscripción)
