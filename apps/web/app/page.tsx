@@ -97,17 +97,6 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section className="wrap">
-        <div className="stats">
-          {STATS.map((s) => (
-            <div className="stat reveal" key={s.l}>
-              <div className="n" style={{ color: s.c }}>{s.n}</div>
-              <div className="l">{s.l}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-
       <section id="planes" className="wrap">
         <div className="stitle reveal">
           <span className="tag">Planes</span>
