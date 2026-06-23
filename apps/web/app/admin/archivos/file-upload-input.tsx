@@ -20,11 +20,14 @@ interface Props {
   onUploaded: (storageKey: string, sizeBytes: number, mimeType: string | null) => void;
 }
 
+type Status = 'idle' | 'preparing' | 'uploading' | 'done' | 'error';
+
 export function FileUploadInput({ onUploaded }: Props) {
   const [folder, setFolder] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const [status, setStatus] = useState<Status>('idle');
+  const [statusLabel, setStatusLabel] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [uploadedKey, setUploadedKey] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,55 +38,81 @@ export function FileUploadInput({ onUploaded }: Props) {
     setStatus('idle');
     setProgress(0);
     setUploadedKey('');
+    setErrorMsg('');
+    setStatusLabel('');
   }
 
-  function handleUpload() {
-    if (!file) { setErrorMsg('Selecciona un archivo primero'); return; }
+  async function handleUpload() {
+    if (!file)           { setErrorMsg('Selecciona un archivo primero'); return; }
     if (!folder.trim()) { setErrorMsg('Escribe la carpeta destino'); return; }
 
     setErrorMsg('');
-    setStatus('uploading');
+    setStatus('preparing');
+    setStatusLabel('Preparando carpeta en Nextcloud…');
     setProgress(0);
 
-    const xhr = new XMLHttpRequest();
+    // ── Paso 1: pedir credenciales de subida directa al servidor ─────────
+    // El servidor crea la carpeta en Nextcloud y devuelve la URL WebDAV.
+    const params = new URLSearchParams({ folder: folder.trim(), filename: file.name });
+    let webdavUrl = '';
+    let authHeader = '';
+    let storageKey = '';
 
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        setProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        setStatus('done');
-        setProgress(100);
-        setUploadedKey(data.storageKey);
-        onUploaded(data.storageKey, data.sizeBytes, data.mimeType);
-      } else {
-        let msg = 'Error al subir el archivo';
-        try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* noop */ }
-        setStatus('error');
-        setErrorMsg(msg);
-      }
-    };
-
-    xhr.onerror = () => {
+    try {
+      const res = await fetch(`/api/admin/upload-creds?${params}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+      const data = await res.json();
+      webdavUrl  = data.webdavUrl;
+      authHeader = data.authHeader;
+      storageKey = data.storageKey;
+    } catch (err: unknown) {
       setStatus('error');
-      setErrorMsg('Error de conexión al subir el archivo');
-    };
+      setErrorMsg(`No se pudo preparar la subida: ${err instanceof Error ? err.message : err}`);
+      return;
+    }
 
-    // Envía el archivo como body binario raw — sin FormData, sin buffering en memoria
-    const params = new URLSearchParams({
-      folder: folder.trim(),
-      filename: file.name,
-    });
-    xhr.open('PUT', `/api/admin/upload-file?${params}`);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    // x-file-type es el tipo real (Content-Type puede volver a ser sobreescrito por el navegador)
-    xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
-    xhr.send(file);
+    // ── Paso 2: intentar subida DIRECTA a Nextcloud (sin pasar por Vercel) ──
+    setStatus('uploading');
+    setStatusLabel('Subiendo directo a cloud.heyvalue.com…');
+
+    const directOk = await attemptDirectUpload(
+      webdavUrl, authHeader, file,
+      (pct) => setProgress(pct),
+    );
+
+    if (directOk) {
+      setStatus('done');
+      setProgress(100);
+      setUploadedKey(storageKey);
+      onUploaded(storageKey, file.size, file.type || null);
+      return;
+    }
+
+    // ── Paso 3: CORS no habilitado en HeyValue → fallback via streaming ──
+    // El archivo pasa por nuestro servidor, que lo reenvía a Nextcloud.
+    // Esto funciona siempre; la velocidad depende del límite de Vercel.
+    setStatusLabel('Subiendo vía servidor (esperando CORS de HeyValue)…');
+    setProgress(0);
+
+    const fallbackParams = new URLSearchParams({ folder: folder.trim(), filename: file.name });
+    const fallbackOk = await attemptStreamUpload(
+      `/api/admin/upload-file?${fallbackParams}`,
+      file,
+      (pct) => setProgress(pct),
+    );
+
+    if (fallbackOk.ok) {
+      setStatus('done');
+      setProgress(100);
+      setUploadedKey(fallbackOk.storageKey ?? storageKey);
+      onUploaded(fallbackOk.storageKey ?? storageKey, fallbackOk.sizeBytes ?? file.size, file.type || null);
+    } else {
+      setStatus('error');
+      setErrorMsg(fallbackOk.error ?? 'Error desconocido al subir el archivo');
+    }
   }
+
+  const busy = status === 'preparing' || status === 'uploading';
 
   return (
     <div className="space-y-3">
@@ -97,14 +126,14 @@ export function FileUploadInput({ onUploaded }: Props) {
           onChange={(e) => setFolder(e.target.value)}
           placeholder="Samsung/A55/Firmware"
           list="folderSuggestions"
-          disabled={status === 'uploading'}
+          disabled={busy}
           className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)] disabled:opacity-50"
         />
         <datalist id="folderSuggestions">
           {FOLDER_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
         </datalist>
         <p className="mt-1 text-xs text-[var(--color-muted)]">
-          Ej: <code>Samsung/A55/Firmware</code> — se crea la carpeta si no existe
+          Ej: <code>Samsung/A55/Firmware</code> — se crea automáticamente si no existe
         </p>
       </div>
 
@@ -115,7 +144,7 @@ export function FileUploadInput({ onUploaded }: Props) {
           ref={fileRef}
           type="file"
           onChange={handleFileChange}
-          disabled={status === 'uploading'}
+          disabled={busy}
           className="block w-full text-sm text-[var(--color-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--color-card)] file:border file:border-[var(--color-border)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-[var(--color-fg)] hover:file:bg-white/10 file:cursor-pointer disabled:opacity-50"
         />
         {file && (
@@ -130,23 +159,27 @@ export function FileUploadInput({ onUploaded }: Props) {
         <button
           type="button"
           onClick={handleUpload}
-          disabled={status === 'uploading' || !file}
+          disabled={busy || !file}
           className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {status === 'uploading' ? 'Subiendo…' : '⬆ Subir archivo'}
+          {busy ? 'Subiendo…' : '⬆ Subir archivo'}
         </button>
       )}
 
-      {/* Barra de progreso */}
-      {status === 'uploading' && (
+      {/* Progreso */}
+      {(busy) && (
         <div className="space-y-1">
-          <div className="h-2 w-full rounded-full bg-[var(--color-border)] overflow-hidden">
-            <div
-              className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-200"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <p className="text-xs text-[var(--color-muted)]">Subiendo… {progress}%</p>
+          {status === 'uploading' && (
+            <div className="h-2 w-full rounded-full bg-[var(--color-border)] overflow-hidden">
+              <div
+                className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          )}
+          <p className="text-xs text-[var(--color-muted)] animate-pulse">
+            {statusLabel} {status === 'uploading' && progress > 0 ? `${progress}%` : ''}
+          </p>
         </div>
       )}
 
@@ -166,4 +199,68 @@ export function FileUploadInput({ onUploaded }: Props) {
       )}
     </div>
   );
+}
+
+// ── helpers ─────────────────────────────────────────────────────────────────
+
+/** Intenta PUT directo a Nextcloud WebDAV. Devuelve true si funciona (CORS OK). */
+function attemptDirectUpload(
+  url: string,
+  authHeader: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () => {
+      // WebDAV PUT: 201 = creado, 204 = reemplazado
+      resolve(xhr.status === 200 || xhr.status === 201 || xhr.status === 204);
+    };
+
+    // onerror == CORS bloqueado u otro error de red
+    xhr.onerror = () => resolve(false);
+
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Authorization', authHeader);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.send(file);
+  });
+}
+
+/** Sube via nuestro servidor (streaming). Devuelve {ok, storageKey, sizeBytes, error}. */
+function attemptStreamUpload(
+  url: string,
+  file: File,
+  onProgress: (pct: number) => void,
+): Promise<{ ok: boolean; storageKey?: string; sizeBytes?: number; error?: string }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        const data = JSON.parse(xhr.responseText);
+        resolve({ ok: true, storageKey: data.storageKey, sizeBytes: data.sizeBytes });
+      } else {
+        let error = 'Error al subir el archivo';
+        try { error = JSON.parse(xhr.responseText).error ?? error; } catch { /* noop */ }
+        resolve({ ok: false, error });
+      }
+    };
+
+    xhr.onerror = () => resolve({ ok: false, error: 'Error de conexión con el servidor' });
+
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
+    xhr.send(file);
+  });
 }
