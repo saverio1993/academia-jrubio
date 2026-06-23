@@ -32,10 +32,9 @@ export async function createFile(formData: FormData) {
   let mimeType: string | null  = null;
 
   if (uploadedFile && uploadedFile.size > 0) {
-    const safeName  = safeSlug(uploadedFile.name) || 'archivo';
-    const safeBrand = safeSlug(brand);
-    const safeCat   = safeSlug(category);
-    storageKey = `${safeBrand}/${safeCat}/${Date.now()}_${safeName}`;
+    const folder = String(formData.get('uploadFolder') ?? '').trim().replace(/\/$/, '');
+    const originalName = uploadedFile.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    storageKey = folder ? `${folder}/${originalName}` : originalName;
 
     const buffer = Buffer.from(await uploadedFile.arrayBuffer());
     const storage = getStorage();

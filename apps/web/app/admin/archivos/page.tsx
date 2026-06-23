@@ -49,26 +49,50 @@ export default async function ArchivosPage({
           <Field name="description" label="Descripción" placeholder="…" className="lg:col-span-3" />
 
           {/* Subir archivo */}
-          <div className="lg:col-span-3 rounded-lg border-2 border-dashed border-[var(--color-border)] p-4">
+          <div className="lg:col-span-3 rounded-lg border-2 border-dashed border-[var(--color-border)] bg-[var(--color-card)] p-4 space-y-3">
+            <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">📁 Subir archivo a Nextcloud</p>
+
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">
-                📁 Subir archivo a Nextcloud
-              </span>
+              <span className="mb-1 block text-xs text-[var(--color-muted)]">Carpeta destino en Nextcloud</span>
+              <input
+                name="uploadFolder"
+                placeholder="Samsung/A55/Firmware"
+                list="folderSuggestions"
+                className={inputCls}
+              />
+              <datalist id="folderSuggestions">
+                <option value="Samsung/Firmware" />
+                <option value="Samsung/FRP" />
+                <option value="Xiaomi/Firmware" />
+                <option value="Xiaomi/FRP" />
+                <option value="Motorola/Firmware" />
+                <option value="Huawei/Firmware" />
+                <option value="Herramientas" />
+                <option value="Drivers" />
+              </datalist>
+              <p className="mt-1 text-xs text-[var(--color-muted)]">
+                Ej: <code>Samsung/A55/Firmware</code> — el archivo se guardará en esa carpeta dentro de tu Nextcloud.
+              </p>
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-xs text-[var(--color-muted)]">Archivo</span>
               <input
                 type="file"
                 name="file"
                 className="block w-full text-sm text-[var(--color-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--color-accent-hover)] file:cursor-pointer"
               />
-              <p className="mt-1 text-xs text-[var(--color-muted)]">
-                El archivo se sube automáticamente a Nextcloud. Si ya está en Nextcloud, usa la ruta manual abajo.
-              </p>
             </label>
+
+            <p className="text-xs text-[var(--color-muted)]">
+              ¿El archivo ya está en Nextcloud? Usa el campo de ruta manual abajo en su lugar.
+            </p>
           </div>
 
           <Field
             name="storageKey"
-            label="Ruta en Nextcloud (opcional si subes archivo)"
-            placeholder="/samsung/a55/firmware.zip"
+            label="Ruta manual en Nextcloud (si el archivo ya existe allí)"
+            placeholder="Samsung/A55/Firmware/archivo.zip"
             className="lg:col-span-2"
           />
 
