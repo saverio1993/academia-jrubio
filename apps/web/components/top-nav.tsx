@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 import { UserMenu } from './user-menu';
+import { MobileMenu } from './mobile-menu';
 
 export async function TopNav() {
   const session = await auth();
@@ -61,11 +62,11 @@ export async function TopNav() {
           )}
         </nav>
 
-        {/* Derecha: Suscripción + Avatar */}
+        {/* Derecha: Suscripción + Avatar + Hamburguesa */}
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {logged ? (
             <>
-              {/* Suscripción: resaltado amarillo */}
+              {/* Suscripción: resaltado amarillo — solo en sm+ */}
               <Link
                 href="/planes"
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 px-3 py-1.5 text-sm font-semibold hover:bg-yellow-500/30 transition-colors"
@@ -91,12 +92,13 @@ export async function TopNav() {
               </Link>
               <Link
                 href="/planes"
-                className="rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-3 py-1.5 text-sm font-medium transition-colors"
+                className="hidden md:inline-block rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-3 py-1.5 text-sm font-medium transition-colors"
               >
                 Suscríbete
               </Link>
             </>
           )}
+          <MobileMenu logged={logged} role={user?.role} />
         </div>
       </div>
     </header>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { auth } from '@/auth';
+import { prisma } from '@academia/db';
 import { RevealOnScroll } from './_components/reveal';
 import { TopNav } from '@/components/top-nav';
 
@@ -14,13 +15,6 @@ const BENEFITS = [
   { ic: '⚡', t: 'Acceso inmediato', d: 'Al suscribirte entras automáticamente al grupo privado y a toda la biblioteca.' },
 ];
 
-const STATS = [
-  { n: '12,400+', l: 'Usuarios registrados', c: '#f97316' },
-  { n: '38,500+', l: 'Archivos disponibles', c: '#fb923c' },
-  { n: '95,000+', l: 'Consultas resueltas', c: '#a855f7' },
-  { n: '2,100+', l: 'Modelos soportados', c: '#f97316' },
-];
-
 const TESTIMONIALS = [
   { av: 'CM', nm: 'Carlos M.', rl: 'Técnico · Colón', q: 'Encontré el firmware que llevaba días buscando en 2 minutos. La comunidad es oro puro.' },
   { av: 'JR', nm: 'José R.', rl: 'Reparación móvil · David', q: 'El bot de IA me resolvió un FRP de Samsung sin tener que preguntar a nadie. Brutal.' },
@@ -30,6 +24,20 @@ const TESTIMONIALS = [
 export default async function HomePage() {
   const session = await auth();
   const logged = Boolean(session?.user);
+
+  const [userCount, fileCount, downloadCount, subCount] = await Promise.all([
+    prisma.user.count(),
+    prisma.fileItem.count(),
+    prisma.download.count(),
+    prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+  ]);
+
+  const STATS = [
+    { n: userCount.toLocaleString('es'), l: 'Usuarios registrados', c: '#f97316' },
+    { n: fileCount.toLocaleString('es'), l: 'Archivos disponibles', c: '#fb923c' },
+    { n: downloadCount.toLocaleString('es'), l: 'Descargas realizadas', c: '#a855f7' },
+    { n: subCount.toLocaleString('es'), l: 'Suscripciones activas', c: '#f97316' },
+  ];
 
   return (
     <main className="landing">
