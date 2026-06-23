@@ -2,6 +2,7 @@ import { prisma } from '@academia/db';
 import { bytes, dateShort } from '@/lib/format';
 import { PageHeader, Card, Badge, Empty, inputCls, btnDanger } from '../_components/ui';
 import { createFile, updateFile, deleteFile } from './actions';
+import { GenerateLink } from './generate-link';
 
 export const dynamic = 'force-dynamic';
 
@@ -127,7 +128,9 @@ export default async function ArchivosPage({
                       </button>
                     </div>
                   </form>
-                  <form action={deleteFile} className="mt-3">
+                  <GenerateLink fileId={f.id} />
+
+                  <form action={deleteFile} className="mt-3 pt-4 border-t border-[var(--color-border)]">
                     <input type="hidden" name="id" value={f.id} />
                     <button className={btnDanger}>Eliminar archivo</button>
                   </form>

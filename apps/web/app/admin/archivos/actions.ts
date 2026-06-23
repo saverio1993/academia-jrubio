@@ -75,3 +75,28 @@ export async function deleteFile(formData: FormData) {
   await logAudit(admin.id, 'file.deleted', `file:${id}`);
   revalidatePath('/admin/archivos');
 }
+
+export async function generateOneTimeLink(
+  _prev: { url: string } | null,
+  formData: FormData,
+): Promise<{ url: string }> {
+  const admin = await assertAdmin();
+  const fileId = String(formData.get('fileId'));
+  const days = Math.min(Math.max(Number(formData.get('days') ?? 7), 1), 30);
+  const note = String(formData.get('note') ?? '').trim() || null;
+
+  if (!fileId) throw new Error('Archivo inválido');
+
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + days);
+
+  const link = await prisma.oneTimeLink.create({
+    data: { fileItemId: fileId, createdById: admin.id, expiresAt, note },
+  });
+
+  const appUrl = process.env.APP_URL ?? 'http://localhost:3000';
+  const url = `${appUrl}/dl/${link.token}`;
+
+  await logAudit(admin.id, 'file.onetimelink.created', `file:${fileId}`, { url, days, note });
+  return { url };
+}

@@ -51,6 +51,7 @@ model User {
   certificates   Certificate[]
   quizAttempts   QuizAttempt[]
   lessonComments LessonComment[]
+  oneTimeLinks   OneTimeLink[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -224,7 +225,8 @@ model FileItem {
   downloadsCount  Int     @default(0)
   tags            String[] @default([])
 
-  downloads Download[]
+  downloads    Download[]
+  oneTimeLinks OneTimeLink[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -428,6 +430,27 @@ model LessonComment {
   replies LessonComment[] @relation("CommentReplies")
 
   @@index([lessonId, createdAt])
+}
+
+// ---------- LINKS DE DESCARGA DE UN SOLO USO ----------
+
+model OneTimeLink {
+  id          String    @id @default(cuid())
+  token       String    @unique @default(uuid())
+  fileItemId  String
+  createdById String
+  note        String?   // para quién es el link (opcional)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  usedByIp    String?
+
+  fileItem  FileItem @relation(fields: [fileItemId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([fileItemId])
 }
 
 // ---------- IA CONFIGURACIÓN (Fase 2) ----------
