@@ -20,21 +20,16 @@ export async function TopNav() {
     <header className="sticky top-0 z-40 backdrop-blur-md bg-[var(--color-bg)]/80 border-b border-[var(--color-border)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
         {/* Logo a la izquierda — siempre va al inicio */}
-        <Link href="/" className="flex items-center gap-3 shrink-0 group">
+        <Link href="/" className="flex items-center gap-1.5 shrink-0 group">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-academia.png"
             alt="Academia J Rubio"
-            className="h-10 w-10 object-contain transition-transform group-hover:scale-105"
+            className="h-20 w-20 object-contain transition-transform group-hover:scale-105"
           />
-          <div className="hidden sm:flex flex-col leading-tight">
-            <span className="text-[10px] uppercase tracking-wider text-[var(--color-muted)] font-medium">
-              Biblioteca de Archivos
-            </span>
-            <span className="font-bold text-sm text-[var(--color-fg)] group-hover:text-[var(--color-accent)] transition-colors">
-              Academia J Rubio
-            </span>
-          </div>
+          <span className="hidden sm:block font-bold text-base text-[var(--color-fg)] group-hover:text-[var(--color-accent)] transition-colors leading-tight">
+            Academia<br />J Rubio
+          </span>
         </Link>
 
         {/* Centro: Archivos + Academia */}
