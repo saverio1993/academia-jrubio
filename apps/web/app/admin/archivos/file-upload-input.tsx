@@ -45,10 +45,6 @@ export function FileUploadInput({ onUploaded }: Props) {
     setStatus('uploading');
     setProgress(0);
 
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('folder', folder.trim());
-
     const xhr = new XMLHttpRequest();
 
     xhr.upload.onprogress = (e) => {
@@ -65,9 +61,10 @@ export function FileUploadInput({ onUploaded }: Props) {
         setUploadedKey(data.storageKey);
         onUploaded(data.storageKey, data.sizeBytes, data.mimeType);
       } else {
-        const data = JSON.parse(xhr.responseText);
+        let msg = 'Error al subir el archivo';
+        try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* noop */ }
         setStatus('error');
-        setErrorMsg(data.error ?? 'Error al subir el archivo');
+        setErrorMsg(msg);
       }
     };
 
@@ -76,8 +73,16 @@ export function FileUploadInput({ onUploaded }: Props) {
       setErrorMsg('Error de conexión al subir el archivo');
     };
 
-    xhr.open('POST', '/api/admin/upload-file');
-    xhr.send(fd);
+    // Envía el archivo como body binario raw — sin FormData, sin buffering en memoria
+    const params = new URLSearchParams({
+      folder: folder.trim(),
+      filename: file.name,
+    });
+    xhr.open('PUT', `/api/admin/upload-file?${params}`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    // x-file-type es el tipo real (Content-Type puede volver a ser sobreescrito por el navegador)
+    xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
+    xhr.send(file);
   }
 
   return (

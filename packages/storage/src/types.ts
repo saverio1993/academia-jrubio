@@ -11,6 +11,7 @@ export interface UploadInput {
   key: string;
   body: Buffer | Uint8Array | ReadableStream | Readable;
   mimeType?: string;
+  contentLength?: number;
 }
 
 export interface ShareLinkOptions {

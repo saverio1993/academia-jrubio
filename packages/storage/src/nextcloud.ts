@@ -18,8 +18,6 @@ export interface NextcloudConfig {
   basePath: string;
 }
 
-type WebDAVBody = string | Buffer | Readable;
-
 /**
  * Implementación de StorageAdapter sobre Nextcloud usando WebDAV
  * (para upload/download) y la OCS Share API (para enlaces temporales).
@@ -46,14 +44,6 @@ export class NextcloudAdapter implements StorageAdapter {
     return `/${base}/${safeKey}`;
   }
 
-  private async normalizeBody(body: UploadInput['body']): Promise<WebDAVBody> {
-    if (Buffer.isBuffer(body)) return body;
-    if (body instanceof Uint8Array) return Buffer.from(body);
-    // ReadableStream del Web API → ArrayBuffer → Buffer
-    const arrayBuffer = await new Response(body as ReadableStream).arrayBuffer();
-    return Buffer.from(arrayBuffer);
-  }
-
   async upload(input: UploadInput): Promise<StorageFile> {
     const fullPath = this.resolve(input.key);
     const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
@@ -61,17 +51,64 @@ export class NextcloudAdapter implements StorageAdapter {
       await this.client.createDirectory(dir, { recursive: true });
     }
 
-    const body = await this.normalizeBody(input.body);
+    // ReadableStream path: stream directly to WebDAV without buffering
+    if (input.body instanceof ReadableStream) {
+      return this.streamToWebDAV(fullPath, input.key, input.body, input.mimeType, input.contentLength);
+    }
+
+    // Buffer path
+    let body: Buffer;
+    if (Buffer.isBuffer(input.body)) {
+      body = input.body;
+    } else if (input.body instanceof Uint8Array) {
+      body = Buffer.from(input.body);
+    } else {
+      // Node.js Readable → Buffer
+      const chunks: Buffer[] = [];
+      for await (const chunk of input.body) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      body = Buffer.concat(chunks);
+    }
+
     await this.client.putFileContents(fullPath, body, { overwrite: true });
 
     const stat = await this.client.stat(fullPath);
-    const fileSize = 'size' in stat ? stat.size : 0;
+    const fileSize = 'size' in stat ? stat.size : body.byteLength;
 
-    return {
-      key: input.key,
-      size: fileSize,
-      mimeType: input.mimeType,
+    return { key: input.key, size: fileSize, mimeType: input.mimeType };
+  }
+
+  private async streamToWebDAV(
+    fullPath: string,
+    key: string,
+    stream: ReadableStream,
+    mimeType?: string,
+    contentLength?: number,
+  ): Promise<StorageFile> {
+    const webdavUrl = `${this.config.baseUrl.replace(/\/$/, '')}/remote.php/dav/files/${this.config.username}${fullPath}`;
+    const auth = Buffer.from(`${this.config.username}:${this.config.appPassword}`).toString('base64');
+
+    const headers: Record<string, string> = {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': mimeType ?? 'application/octet-stream',
     };
+    if (contentLength) headers['Content-Length'] = String(contentLength);
+
+    const res = await fetch(webdavUrl, {
+      method: 'PUT',
+      headers,
+      body: stream,
+      // @ts-ignore -- Node.js 18+ requires duplex for streaming request bodies
+      duplex: 'half',
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(`Nextcloud WebDAV PUT falló: ${res.status} ${res.statusText} — ${text}`);
+    }
+
+    return { key, size: contentLength ?? 0, mimeType };
   }
 
   async download(key: string): Promise<Buffer> {
