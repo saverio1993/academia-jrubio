@@ -12,6 +12,7 @@
 
 const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const { Readable } = require('stream');
 
 const app = express();
@@ -28,7 +29,15 @@ const authHeader = () => 'Basic ' + Buffer.from(`${NC_USER()}:${NC_PASS()}`).toS
 const davBase    = () => `${NC_URL()}/remote.php/dav/files/${NC_USER()}`;
 
 // ── Archivos estáticos ──────────────────────────────────────────────────────
-app.use(express.static(path.join(__dirname, 'public')));
+const PUBLIC_DIR  = path.join(__dirname, 'public');
+const INDEX_FILE  = path.join(PUBLIC_DIR, 'index.html');
+console.log('Directorio público:', PUBLIC_DIR);
+console.log('index.html existe:', fs.existsSync(INDEX_FILE));
+
+app.use(express.static(PUBLIC_DIR));
+
+// Ruta explícita para / por si express.static no lo sirve solo
+app.get('/', (_req, res) => res.sendFile(INDEX_FILE));
 
 // ── CORS ────────────────────────────────────────────────────────────────────
 app.use((req, res, next) => {
