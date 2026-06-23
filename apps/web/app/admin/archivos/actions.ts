@@ -1,7 +1,6 @@
 'use server';
 
 import { prisma } from '@academia/db';
-import { getStorage } from '@academia/storage';
 import { revalidatePath } from 'next/cache';
 import { assertAdmin, logAudit } from '@/lib/admin';
 
@@ -26,26 +25,15 @@ export async function createFile(formData: FormData) {
     throw new Error('Faltan campos obligatorios (título, marca, categoría)');
   }
 
-  const uploadedFile = formData.get('file') as File | null;
   let storageKey  = String(formData.get('storageKey') ?? '').trim();
   let sizeBytes: bigint | null = null;
   let mimeType: string | null  = null;
 
-  if (uploadedFile && uploadedFile.size > 0) {
-    const folder = String(formData.get('uploadFolder') ?? '').trim().replace(/\/$/, '');
-    const originalName = uploadedFile.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
-    storageKey = folder ? `${folder}/${originalName}` : originalName;
-
-    const buffer = Buffer.from(await uploadedFile.arrayBuffer());
-    const storage = getStorage();
-    const uploaded = await storage.upload({
-      key: storageKey,
-      body: buffer,
-      mimeType: uploadedFile.type || undefined,
-    });
-    sizeBytes = BigInt(uploaded.size);
-    mimeType  = uploadedFile.type || null;
-  }
+  // Fields set by CreateFileForm after XHR upload to /api/admin/upload-file
+  const rawSize = formData.get('__sizeBytes');
+  const rawMime = formData.get('__mimeType');
+  if (rawSize) sizeBytes = BigInt(Math.round(Number(rawSize)));
+  if (rawMime) mimeType  = String(rawMime);
 
   if (!storageKey) {
     throw new Error('Sube un archivo o ingresa la ruta de Nextcloud manualmente');

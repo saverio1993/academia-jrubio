@@ -1,8 +1,9 @@
 import { prisma } from '@academia/db';
 import { bytes, dateShort } from '@/lib/format';
 import { PageHeader, Card, Badge, Empty, inputCls, btnDanger } from '../_components/ui';
-import { createFile, updateFile, deleteFile } from './actions';
+import { updateFile, deleteFile } from './actions';
 import { GenerateLink } from './generate-link';
+import { CreateFileForm } from './create-file-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,88 +36,18 @@ export default async function ArchivosPage({
     <>
       <PageHeader title="Archivos" subtitle={`${files.length} archivo(s) en la biblioteca`} />
 
-      {/* Crear archivo */}
+      {/* Crear archivo — cliente para subida XHR con barra de progreso */}
       <Card className="mb-6 p-5">
         <h2 className="mb-4 font-semibold">Agregar archivo</h2>
-        <form action={createFile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <Field name="title" label="Título *" placeholder="Firmware Samsung A55" required />
-          <Field name="brand" label="Marca *" list="brands" placeholder="Samsung" required />
-          <Field name="category" label="Categoría *" list="categories" placeholder="firmware" required />
-          <Field name="model" label="Modelo" placeholder="A556B" />
-          <Field name="subcategory" label="Subcategoría" placeholder="oficial" />
-          <Field name="version" label="Versión" placeholder="A556BXXU5BWK1" />
-          <Field name="tags" label="Tags (separados por coma)" placeholder="frp, android 14" />
-          <Field name="description" label="Descripción" placeholder="…" className="lg:col-span-3" />
-
-          {/* Subir archivo */}
-          <div className="lg:col-span-3 rounded-lg border-2 border-dashed border-[var(--color-border)] bg-[var(--color-card)] p-4 space-y-3">
-            <p className="text-xs font-semibold text-[var(--color-muted)] uppercase tracking-wider">📁 Subir archivo a Nextcloud</p>
-
-            <label className="block">
-              <span className="mb-1 block text-xs text-[var(--color-muted)]">Carpeta destino en Nextcloud</span>
-              <input
-                name="uploadFolder"
-                placeholder="Samsung/A55/Firmware"
-                list="folderSuggestions"
-                className={inputCls}
-              />
-              <datalist id="folderSuggestions">
-                <option value="Samsung/Firmware" />
-                <option value="Samsung/FRP" />
-                <option value="Xiaomi/Firmware" />
-                <option value="Xiaomi/FRP" />
-                <option value="Motorola/Firmware" />
-                <option value="Huawei/Firmware" />
-                <option value="Herramientas" />
-                <option value="Drivers" />
-              </datalist>
-              <p className="mt-1 text-xs text-[var(--color-muted)]">
-                Ej: <code>Samsung/A55/Firmware</code> — el archivo se guardará en esa carpeta dentro de tu Nextcloud.
-              </p>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-xs text-[var(--color-muted)]">Archivo</span>
-              <input
-                type="file"
-                name="file"
-                className="block w-full text-sm text-[var(--color-muted)] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-[var(--color-accent-hover)] file:cursor-pointer"
-              />
-            </label>
-
-            <p className="text-xs text-[var(--color-muted)]">
-              ¿El archivo ya está en Nextcloud? Usa el campo de ruta manual abajo en su lugar.
-            </p>
-          </div>
-
-          <Field
-            name="storageKey"
-            label="Ruta manual en Nextcloud (si el archivo ya existe allí)"
-            placeholder="Samsung/A55/Firmware/archivo.zip"
-            className="lg:col-span-2"
-          />
-
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="isPremium" defaultChecked className="accent-[var(--color-accent)]" />
-            Premium (requiere suscripción)
-          </label>
-          <div className="lg:col-span-3">
-            <button className="rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]">
-              Agregar archivo
-            </button>
-          </div>
-        </form>
+        <CreateFileForm />
       </Card>
 
+      {/* Datalists usados por los formularios de edición */}
       <datalist id="brands">
-        {BRANDS.map((b) => (
-          <option key={b} value={b} />
-        ))}
+        {BRANDS.map((b) => <option key={b} value={b} />)}
       </datalist>
       <datalist id="categories">
-        {CATEGORIES.map((c) => (
-          <option key={c} value={c} />
-        ))}
+        {CATEGORIES.map((c) => <option key={c} value={c} />)}
       </datalist>
 
       <form className="mb-5 flex gap-2" action="/admin/archivos">

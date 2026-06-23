@@ -3,6 +3,11 @@ import path from 'path';
 
 const config: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '500mb',
+    },
+  },
   transpilePackages: ['@academia/db', '@academia/storage'],
   // Prisma debe tratarse como paquete externo del servidor.
   serverExternalPackages: ['@prisma/client', 'prisma'],
