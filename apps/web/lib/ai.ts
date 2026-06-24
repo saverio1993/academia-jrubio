@@ -1,6 +1,7 @@
-// Wrapper de IA. Lee config SOLO de env vars (panel admin es read-only).
-// Cambiar token/modelo/prompt requiere editar env vars en Vercel y redeploy.
+// IA wrapper — lee config de BD primero, env vars como fallback.
+// El panel admin (/admin/ia) guarda directamente en BD.
 
+import { prisma } from '@academia/db';
 
 interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -24,10 +25,10 @@ interface AIConfig {
   maxTokens: number;
   temperature: number;
   rateLimit: number;
-  source: 'env'; // siempre env, ya no BD
+  source: 'db' | 'env';
 }
 
-const DEFAULT_SYSTEM_PROMPT = `Eres el asistente de búsqueda de la "Academia J Rubio", una plataforma para técnicos de teléfonos móviles.
+export const DEFAULT_SYSTEM_PROMPT = `Eres el asistente de búsqueda de la "Academia J Rubio", una plataforma para técnicos de teléfonos móviles.
 
 TU ROL EXCLUSIVO:
 - Ayudar a los usuarios a BUSCAR archivos en la biblioteca
@@ -49,34 +50,43 @@ IDIOMA: Responde en español, tono amigable y profesional, breve y al grano.`;
 
 const TIMEOUT_MS = 30_000;
 
-// Cache de config (5 segundos) para no leer env vars en cada request
 let cachedConfig: { value: AIConfig | null; expires: number } | null = null;
+
 async function getAIConfig(): Promise<AIConfig | null> {
   const now = Date.now();
-  if (cachedConfig && cachedConfig.expires > now) {
-    return cachedConfig.value;
+  if (cachedConfig && cachedConfig.expires > now) return cachedConfig.value;
+
+  // 1. Leer fila en BD (singleton id="default")
+  let row: Awaited<ReturnType<typeof prisma.aIConfig.findUnique>> = null;
+  try {
+    row = await prisma.aIConfig.findUnique({ where: { id: 'default' } });
+  } catch {
+    // BD no disponible — seguimos con env vars
   }
 
-  const apiKey = process.env.MINIMAX_API_KEY;
+  // API key: solo env var (no se guarda en BD desde el panel)
+  const apiKey = process.env.MINIMAX_API_KEY ?? '';
   if (!apiKey) {
-    cachedConfig = { value: null, expires: now + 5000 };
+    cachedConfig = { value: null, expires: now + 5_000 };
     return null;
   }
 
   const config: AIConfig = {
     provider: 'minimax',
     apiKey,
-    endpoint: process.env.MINIMAX_ENDPOINT || 'https://api.minimax.io/v1',
-    model: process.env.MINIMAX_MODEL || 'MiniMax-M2.7-highspeed',
-    systemPrompt: process.env.MINIMAX_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT,
-    enabled: process.env.MINIMAX_ENABLED !== 'false', // default true
-    maxTokens: parseInt(process.env.MINIMAX_MAX_TOKENS || '500', 10),
-    temperature: parseFloat(process.env.MINIMAX_TEMPERATURE || '0.3'),
-    rateLimit: parseInt(process.env.MINIMAX_RATE_LIMIT || '30', 10),
-    source: 'env',
+    endpoint:     row?.endpoint     ?? process.env.MINIMAX_ENDPOINT     ?? 'https://api.minimax.io/v1',
+    model:        row?.model        ?? process.env.MINIMAX_MODEL        ?? 'MiniMax-M2.7-highspeed',
+    systemPrompt: (row?.systemPrompt && row.systemPrompt.length > 10)
+                    ? row.systemPrompt
+                    : (process.env.MINIMAX_SYSTEM_PROMPT ?? DEFAULT_SYSTEM_PROMPT),
+    enabled:      row?.enabled      ?? (process.env.MINIMAX_ENABLED !== 'false'),
+    maxTokens:    row?.maxTokens    ?? parseInt(process.env.MINIMAX_MAX_TOKENS  ?? '500', 10),
+    temperature:  row?.temperature  ?? parseFloat(process.env.MINIMAX_TEMPERATURE ?? '0.3'),
+    rateLimit:    row?.rateLimit    ?? parseInt(process.env.MINIMAX_RATE_LIMIT   ?? '30',  10),
+    source:       row ? 'db' : 'env',
   };
 
-  cachedConfig = { value: config, expires: now + 5000 };
+  cachedConfig = { value: config, expires: now + 5_000 };
   return config;
 }
 
@@ -86,7 +96,7 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
     throw new Error('IA no configurada. Configura MINIMAX_API_KEY en Vercel > Environment Variables.');
   }
   if (!config.enabled) {
-    throw new Error('El asistente de IA está deshabilitado. Actívalo (MINIMAX_ENABLED=true) en Vercel.');
+    throw new Error('El asistente de IA está deshabilitado temporalmente.');
   }
 
   const messages: ChatMessage[] = [
@@ -101,20 +111,16 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
   }
 
   if (history && history.length > 0) {
-    const recent = history.slice(-10);
-    messages.push(...recent);
+    messages.push(...history.slice(-10));
   }
 
   messages.push({ role: 'user', content: query });
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timeoutId  = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  // Construir URL completa: si el endpoint no termina en /chat/completions, agregarlo
   let apiUrl = config.endpoint.replace(/\/+$/, '');
-  if (!apiUrl.endsWith('/chat/completions')) {
-    apiUrl = `${apiUrl}/chat/completions`;
-  }
+  if (!apiUrl.endsWith('/chat/completions')) apiUrl += '/chat/completions';
 
   try {
     const res = await fetch(apiUrl, {
@@ -124,9 +130,9 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
         Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
-        model: config.model,
+        model:       config.model,
         messages,
-        max_tokens: config.maxTokens,
+        max_tokens:  config.maxTokens,
         temperature: config.temperature,
       }),
       signal: controller.signal,
@@ -138,7 +144,7 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
       throw new Error(`API ${res.status}: ${text.substring(0, 150)}`);
     }
 
-    const data = await res.json();
+    const data  = await res.json();
     const reply = data?.choices?.[0]?.message?.content;
     if (!reply) {
       console.error('[AI no reply]', JSON.stringify(data).substring(0, 500));
@@ -153,26 +159,23 @@ export async function callAI({ query, context, history, userId }: ChatOptions): 
 
 function sanitizeOutput(text: string): string {
   let clean = text;
-  // Quitar bloques de razonamiento interno (think, reasoning, etc.)
   clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '');
   clean = clean.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '');
   clean = clean.replace(/<\|think\|>[\s\S]*?<\|end\|>/gi, '');
   clean = clean.replace(/\[\[think\]\][\s\S]*?\[\[\/think\]\]/gi, '');
-  // Quitar rutas/tokens sensibles
   clean = clean.replace(/(\/admin[^\s]*)/gi, '[redactado]');
   clean = clean.replace(/(\/api\/[^\s]*)/gi, '[redactado]');
   clean = clean.replace(/(sk-[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(sk_[a-zA-Z0-9_-]{20,})/g, '[redactado]');
   clean = clean.replace(/(Bearer\s+[a-zA-Z0-9_-]{20,})/g, '[redactado]');
-  // Limpiar líneas vacías múltiples que deja el filtrado
   clean = clean.replace(/\n{3,}/g, '\n\n').trim();
   return clean;
 }
 
-// Rate limit
+// Rate limit en memoria (por proceso)
 const rateLimit = new Map<string, { count: number; resetAt: number }>();
 export function checkRateLimit(userId: string, maxPerMin = 30): boolean {
-  const now = Date.now();
+  const now   = Date.now();
   const entry = rateLimit.get(userId);
   if (!entry || entry.resetAt < now) {
     rateLimit.set(userId, { count: 1, resetAt: now + 60_000 });
@@ -187,7 +190,7 @@ export function invalidateAICache() {
   cachedConfig = null;
 }
 
-// Helper para el panel admin (read-only)
+// Helper para el panel admin
 export async function getAIConfigReadOnly() {
   return getAIConfig();
 }
