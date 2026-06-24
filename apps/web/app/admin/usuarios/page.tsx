@@ -1,8 +1,8 @@
 import { prisma } from '@academia/db';
 import { dateShort } from '@/lib/format';
 import { PageHeader, Table, Th, Td, Badge, Empty, inputCls, btnGhost } from '../_components/ui';
-import { changeRole } from './actions';
 import { CreateUserModal } from './create-user-modal';
+import { UserRow } from './user-row';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,12 +79,12 @@ export default async function UsuariosPage({
         >
           {users.map((u) => (
             <tr key={u.id} className="hover:bg-white/[0.02]">
-              <Td>
-                <div className="min-w-0">
-                  <p className="font-medium">{u.name ?? u.username ?? '—'}</p>
-                  <p className="text-xs text-[var(--color-muted)]">{u.email}</p>
-                </div>
-              </Td>
+              <UserRow
+                userId={u.id}
+                currentRole={u.role as 'USER' | 'MODERATOR' | 'ADMIN'}
+                currentName={u.name ?? u.username ?? null}
+                email={u.email}
+              />
               <Td className="text-[var(--color-muted)]">{u.country ?? '—'}</Td>
               <Td>
                 {u.subscriptions.length > 0 ? (
@@ -94,30 +94,11 @@ export default async function UsuariosPage({
                 )}
               </Td>
               <Td className="whitespace-nowrap text-xs text-[var(--color-muted)]">
-                {u.subscriptions[0]?.expiresAt
-                  ? dateShort(u.subscriptions[0].expiresAt)
-                  : '—'}
+                {u.subscriptions[0]?.expiresAt ? dateShort(u.subscriptions[0].expiresAt) : '—'}
               </Td>
               <Td className="text-center text-[var(--color-muted)]">{u._count.payments}</Td>
               <Td className="whitespace-nowrap text-xs text-[var(--color-muted)]">
                 {dateShort(u.createdAt)}
-              </Td>
-              <Td>
-                <form action={changeRole} className="flex items-center gap-2">
-                  <input type="hidden" name="userId" value={u.id} />
-                  <select
-                    name="role"
-                    defaultValue={u.role}
-                    className="rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs outline-none focus:border-[var(--color-accent)]"
-                  >
-                    <option value="USER">USER</option>
-                    <option value="MODERATOR">MODERATOR</option>
-                    <option value="ADMIN">ADMIN</option>
-                  </select>
-                  <button className="rounded-md border border-[var(--color-border)] px-2 py-1 text-xs transition-colors hover:bg-white/5">
-                    Guardar
-                  </button>
-                </form>
               </Td>
             </tr>
           ))}

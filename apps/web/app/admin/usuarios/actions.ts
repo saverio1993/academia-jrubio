@@ -85,19 +85,38 @@ export async function createUser(_prev: CreateResult | null, formData: FormData)
   }
 }
 
-export async function changeRole(formData: FormData) {
-  const admin = await assertAdmin();
-  const userId = String(formData.get('userId'));
-  const role = String(formData.get('role')) as Role;
-  if (!userId || !ROLES.includes(role)) throw new Error('Datos inválidos');
+export async function changeRole(formData: FormData): Promise<{ ok: boolean; text: string }> {
+  try {
+    const admin = await assertAdmin();
+    const userId = String(formData.get('userId'));
+    const role = String(formData.get('role')) as Role;
+    if (!userId || !ROLES.includes(role)) return { ok: false, text: 'Datos inválidos' };
 
-  // Evita que el admin se quite a sí mismo el último acceso por accidente
-  if (userId === admin.id && role !== 'ADMIN') {
-    const admins = await prisma.user.count({ where: { role: 'ADMIN' } });
-    if (admins <= 1) throw new Error('No puedes quitar el último administrador');
+    if (userId === admin.id && role !== 'ADMIN') {
+      const admins = await prisma.user.count({ where: { role: 'ADMIN' } });
+      if (admins <= 1) return { ok: false, text: 'No puedes quitarte el único rol ADMIN' };
+    }
+
+    await prisma.user.update({ where: { id: userId }, data: { role } });
+    await logAudit(admin.id, 'user.role.changed', `user:${userId}`, { role });
+    revalidatePath('/admin/usuarios');
+    return { ok: true, text: 'Rol actualizado' };
+  } catch {
+    return { ok: false, text: 'Error al guardar' };
   }
+}
 
-  await prisma.user.update({ where: { id: userId }, data: { role } });
-  await logAudit(admin.id, 'user.role.changed', `user:${userId}`, { role });
-  revalidatePath('/admin/usuarios');
+export async function updateUserName(formData: FormData): Promise<{ ok: boolean; text: string }> {
+  try {
+    await assertAdmin();
+    const userId = String(formData.get('userId'));
+    const name   = String(formData.get('name') ?? '').trim();
+    if (!userId) return { ok: false, text: 'Usuario inválido' };
+
+    await prisma.user.update({ where: { id: userId }, data: { name: name || null } });
+    revalidatePath('/admin/usuarios');
+    return { ok: true, text: 'Nombre actualizado' };
+  } catch {
+    return { ok: false, text: 'Error al guardar' };
+  }
 }
