@@ -26,13 +26,16 @@ export function DownloadButton({
     setLoading(true);
     setError(null);
     try {
-      const { url } = await getDownloadUrl(fileId);
-      window.open(url, '_blank');
+      const result = await getDownloadUrl(fileId);
+      if (!result.ok) {
+        if (result.code === 'NOT_AUTHENTICATED') { window.location.href = '/signin?callbackUrl=/archivos'; return; }
+        if (result.code === 'NO_SUBSCRIPTION')   { window.location.href = '/planes'; return; }
+        setError(result.message);
+        return;
+      }
+      window.open(result.url, '_blank');
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Error';
-      if (msg === 'NOT_AUTHENTICATED') { window.location.href = '/signin?callbackUrl=/archivos'; return; }
-      if (msg === 'NO_SUBSCRIPTION')   { window.location.href = '/planes'; return; }
-      setError(msg);
+      setError(e instanceof Error ? e.message : 'Error inesperado');
     } finally {
       setLoading(false);
     }

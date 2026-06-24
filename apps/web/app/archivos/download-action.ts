@@ -92,45 +92,43 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   return { url: downloadUrl, expiresAt };
 }
 
+type DownloadResult =
+  | { ok: true;  url: string; expiresAt: string }
+  | { ok: false; code: 'NOT_AUTHENTICATED' | 'NO_SUBSCRIPTION' | 'ERROR'; message: string };
+
 /**
- * Devuelve la URL de descarga. NO hace redirect, porque en Next.js
- * los redirects en Server Actions llamadas desde Client Components no funcionan.
- * El cliente hace window.location.href con la URL devuelta.
+ * Retorna el resultado en vez de lanzar excepciones — los throws de Server Actions
+ * son opacos en producción ("An error occurred in the server").
  */
-export async function getDownloadUrl(
-  fileId: string,
-): Promise<{ url: string; expiresAt: string }> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error('NOT_AUTHENTICATED');
+export async function getDownloadUrl(fileId: string): Promise<DownloadResult> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { ok: false, code: 'NOT_AUTHENTICATED', message: 'Debes iniciar sesión' };
+    }
+
+    const file = await prisma.fileItem.findUnique({ where: { id: fileId } });
+    if (!file) return { ok: false, code: 'ERROR', message: 'Archivo no encontrado en la base de datos' };
+
+    const role    = (session.user as { role?: string }).role;
+    const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+    if (file.isPremium && !isAdmin) {
+      const hasSub = await hasActiveSubscription(session.user.id);
+      if (!hasSub) return { ok: false, code: 'NO_SUBSCRIPTION', message: 'Este archivo requiere suscripción activa' };
+    }
+
+    const share = await createNextcloudShare(file.storageKey);
+
+    await Promise.all([
+      prisma.fileItem.update({ where: { id: fileId }, data: { downloadsCount: { increment: 1 } } }),
+      prisma.download.create({ data: { fileId, userId: session.user.id, ip: 'web' } }),
+    ]);
+
+    return { ok: true, url: share.url, expiresAt: share.expiresAt.toISOString() };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Error desconocido';
+    console.error('[getDownloadUrl]', message);
+    return { ok: false, code: 'ERROR', message };
   }
-
-  const file = await prisma.fileItem.findUnique({ where: { id: fileId } });
-  if (!file) throw new Error('Archivo no encontrado');
-
-  // Admins y moderadores tienen acceso completo
-  const role = (session.user as { role?: string }).role;
-  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
-
-  // Verificar suscripción para archivos premium (solo usuarios normales)
-  if (file.isPremium && !isAdmin) {
-    const hasSub = await hasActiveSubscription(session.user.id);
-    if (!hasSub) throw new Error('NO_SUBSCRIPTION');
-  }
-
-  // Generar enlace de descarga desde Nextcloud
-  const share = await createNextcloudShare(file.storageKey);
-
-  // Registrar descarga
-  await Promise.all([
-    prisma.fileItem.update({
-      where: { id: fileId },
-      data: { downloadsCount: { increment: 1 } },
-    }),
-    prisma.download.create({
-      data: { fileId, userId: session.user.id, ip: 'web' },
-    }),
-  ]);
-
-  return { url: share.url, expiresAt: share.expiresAt.toISOString() };
 }

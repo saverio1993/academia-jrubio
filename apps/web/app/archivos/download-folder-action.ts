@@ -71,39 +71,34 @@ async function createNextcloudFolderShare(folderPath: string): Promise<Nextcloud
   return { url: shareUrl, expiresAt, id: shareId || '' };
 }
 
-/**
- * Devuelve URL para descargar una carpeta como ZIP desde Nextcloud.
- * Nextcloud soporta /download al final de un share de carpeta,
- * que automáticamente la comprime en ZIP.
- */
-export async function downloadFolderZip(
-  folderPath: string,
-): Promise<{ url: string; expiresAt: string }> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error('NOT_AUTHENTICATED');
+type FolderResult =
+  | { ok: true;  url: string; expiresAt: string }
+  | { ok: false; code: 'NOT_AUTHENTICATED' | 'NO_SUBSCRIPTION' | 'ERROR'; message: string };
+
+export async function downloadFolderZip(folderPath: string): Promise<FolderResult> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return { ok: false, code: 'NOT_AUTHENTICATED', message: 'Debes iniciar sesión' };
+    }
+
+    const role    = (session.user as { role?: string }).role;
+    const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+    if (!isAdmin) {
+      const hasSub = await hasActiveSubscription(session.user.id);
+      if (!hasSub) return { ok: false, code: 'NO_SUBSCRIPTION', message: 'Descarga de carpetas requiere suscripción' };
+    }
+
+    const ncBase        = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
+    const absoluteFolder = folderPath.startsWith('/') ? folderPath : `${ncBase}/${folderPath}`;
+    const share          = await createNextcloudFolderShare(absoluteFolder);
+    const downloadUrl    = share.url.endsWith('/') ? `${share.url}download` : `${share.url}/download`;
+
+    return { ok: true, url: downloadUrl, expiresAt: share.expiresAt.toISOString() };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Error desconocido';
+    console.error('[downloadFolderZip]', message);
+    return { ok: false, code: 'ERROR', message };
   }
-
-  // Admins y moderadores tienen acceso completo
-  const role = (session.user as { role?: string }).role;
-  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
-
-  // Verificar suscripción (descarga de carpetas es premium, solo usuarios normales)
-  if (!isAdmin) {
-    const hasSub = await hasActiveSubscription(session.user.id);
-    if (!hasSub) throw new Error('NO_SUBSCRIPTION');
-  }
-
-  // Construir path absoluto en Nextcloud si es relativo
-  const ncBase = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
-  const absoluteFolder = folderPath.startsWith('/') ? folderPath : `${ncBase}/${folderPath}`;
-
-  // Crear share de la carpeta
-  const share = await createNextcloudFolderShare(absoluteFolder);
-
-  // URL de descarga: /s/{token}/download?path=/ → ZIP
-  // Nextcloud detecta que es carpeta y la comprime
-  const downloadUrl = share.url.endsWith('/') ? `${share.url}download` : `${share.url}/download`;
-
-  return { url: downloadUrl, expiresAt: share.expiresAt.toISOString() };
 }
