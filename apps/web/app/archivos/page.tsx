@@ -5,6 +5,7 @@ import { hasActiveSubscription } from '@/lib/access';
 import { AIChat } from './ai-chat';
 import { FileTree } from './file-tree';
 import { HeroSearch } from './hero-search';
+import { SmartSearch } from './smart-search';
 import { TopNav } from '@/components/top-nav';
 
 export const dynamic = 'force-dynamic';
@@ -82,6 +83,8 @@ export default async function ArchivosPage({
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
           {/* COLUMNA IZQUIERDA: Biblioteca en árbol */}
           <div>
+            {/* Búsqueda rápida con autocompletado */}
+            <SmartSearch userId={userId} hasSub={hasSub} />
 
             {files.length === 0 ? (
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-12 text-center">
