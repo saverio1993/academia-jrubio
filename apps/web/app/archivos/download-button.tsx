@@ -77,7 +77,7 @@ export function DownloadButton({
             : 'px-3 py-1.5 text-xs whitespace-nowrap'
         }`}
       >
-        {loading ? '⟳ Preparando…' : (fullWidth ? (label ?? '⬇ Descargar') : '⬇')}
+        {loading ? 'Preparando…' : (label ?? (fullWidth ? 'Descargar' : 'Descargar'))}
       </button>
       {error && (
         <p className="mt-1 text-[10px] text-red-400 leading-tight">

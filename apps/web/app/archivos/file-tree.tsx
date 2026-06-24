@@ -193,7 +193,7 @@ function FolderNode({
                   <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">
                     {f.sizeBytes ? bytes(f.sizeBytes) : ''}
                   </span>
-                  <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} />
+                  <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} label={blocked ? 'PRO' : 'Descargar'} />
                 </div>
               </div>
             );
