@@ -22,7 +22,7 @@ export async function PUT(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id }, select: { role: true } });
-  if (user?.role !== 'ADMIN') return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
+  if (user?.role !== 'ADMIN' && user?.role !== 'MODERATOR') return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
 
   const { searchParams } = req.nextUrl;
   const uploadId = searchParams.get('uploadId');

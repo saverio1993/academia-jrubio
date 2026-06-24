@@ -2,7 +2,7 @@
 
 import { prisma } from '@academia/db';
 import { revalidatePath } from 'next/cache';
-import { assertAdmin, logAudit } from '@/lib/admin';
+import { assertAdminOrModerator, logAudit } from '@/lib/admin';
 
 // ── Sincronizar desde Nextcloud ──────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ export interface SyncResult {
 }
 
 export async function syncFromNextcloud(): Promise<SyncResult> {
-  await assertAdmin();
+  await assertAdminOrModerator();
 
   const authHeader = 'Basic ' + Buffer.from(`${NC_USER}:${NC_PASS}`).toString('base64');
   const davBase    = `${NC_URL}/remote.php/dav/files/${NC_USER}/${NC_BASE}`;
@@ -166,7 +166,7 @@ function safeSlug(s: string) {
 }
 
 export async function createFile(formData: FormData) {
-  const admin = await assertAdmin();
+  const admin = await assertAdminOrModerator();
   const title    = String(formData.get('title') ?? '').trim();
   const brand    = String(formData.get('brand') ?? '').trim();
   const category = String(formData.get('category') ?? '').trim();
@@ -210,7 +210,7 @@ export async function createFile(formData: FormData) {
 }
 
 export async function updateFile(formData: FormData) {
-  const admin = await assertAdmin();
+  const admin = await assertAdminOrModerator();
   const id = String(formData.get('id'));
   const title = String(formData.get('title') ?? '').trim();
   const brand = String(formData.get('brand') ?? '').trim();
@@ -237,7 +237,7 @@ export async function updateFile(formData: FormData) {
 }
 
 export async function deleteFile(formData: FormData) {
-  const admin = await assertAdmin();
+  const admin = await assertAdminOrModerator();
   const id = String(formData.get('id'));
   if (!id) throw new Error('Archivo inválido');
   await prisma.fileItem.delete({ where: { id } });
@@ -249,7 +249,7 @@ export async function generateOneTimeLink(
   _prev: { url: string } | null,
   formData: FormData,
 ): Promise<{ url: string }> {
-  const admin = await assertAdmin();
+  const admin = await assertAdminOrModerator();
   const fileId = String(formData.get('fileId'));
   const days = Math.min(Math.max(Number(formData.get('days') ?? 7), 1), 30);
   const note = String(formData.get('note') ?? '').trim() || null;

@@ -2,12 +2,10 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
 
-/**
- * Garantiza que quien accede es ADMIN. Revalida el rol contra la base de datos
- * (no confía solo en la sesión, que podría estar desactualizada).
- * Devuelve el usuario admin o redirige.
- */
-export async function requireAdmin() {
+type AdminUser = { id: string; role: string; name: string | null; email: string; image: string | null };
+
+/** ADMIN o MODERADOR — para el panel de administración y gestión de contenido. */
+export async function requireAdmin(): Promise<AdminUser> {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin?callbackUrl=/admin');
 
@@ -16,11 +14,11 @@ export async function requireAdmin() {
     select: { id: true, role: true, name: true, email: true, image: true },
   });
 
-  if (!user || user.role !== 'ADMIN') redirect('/dashboard');
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR')) redirect('/dashboard');
   return user;
 }
 
-/** Igual que requireAdmin pero para usar dentro de server actions (lanza en vez de redirigir). */
+/** Solo ADMIN — para operaciones sensibles (usuarios, pagos, planes). */
 export async function assertAdmin() {
   const session = await auth();
   if (!session?.user?.id) throw new Error('No autenticado');
@@ -28,7 +26,19 @@ export async function assertAdmin() {
     where: { id: session.user.id },
     select: { id: true, role: true },
   });
-  if (!user || user.role !== 'ADMIN') throw new Error('No autorizado');
+  if (!user || user.role !== 'ADMIN') throw new Error('No autorizado — solo administradores');
+  return user;
+}
+
+/** ADMIN o MODERADOR — para server actions de contenido (archivos, cursos, IA). */
+export async function assertAdminOrModerator() {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('No autenticado');
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, role: true },
+  });
+  if (!user || (user.role !== 'ADMIN' && user.role !== 'MODERATOR')) throw new Error('No autorizado');
   return user;
 }
 

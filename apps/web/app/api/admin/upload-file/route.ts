@@ -16,7 +16,7 @@ export async function PUT(req: NextRequest) {
     where: { id: session.user.id },
     select: { role: true },
   });
-  if (user?.role !== 'ADMIN') {
+  if (user?.role !== 'ADMIN' && user?.role !== 'MODERATOR') {
     return NextResponse.json({ error: 'Acceso denegado' }, { status: 403 });
   }
 

@@ -2,7 +2,7 @@
 
 import { prisma } from '@academia/db';
 import { revalidatePath } from 'next/cache';
-import { assertAdmin, logAudit } from '@/lib/admin';
+import { assertAdminOrModerator as assertAdmin, logAudit } from '@/lib/admin';
 
 /** Crea el examen del curso (si no existe) o actualiza título y nota mínima. */
 export async function saveQuiz(formData: FormData) {

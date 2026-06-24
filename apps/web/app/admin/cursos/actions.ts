@@ -4,7 +4,7 @@ import type { CourseLevel, LessonType } from '@academia/db';
 import { prisma } from '@academia/db';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { assertAdmin, logAudit } from '@/lib/admin';
+import { assertAdminOrModerator as assertAdmin, logAudit } from '@/lib/admin';
 
 const LEVELS = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as const;
 const TYPES = ['VIDEO', 'PDF', 'TEXT'] as const;
