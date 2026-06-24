@@ -33,10 +33,10 @@ export function SyncButton() {
           {loading ? (
             <>
               <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--color-muted)] border-t-white" />
-              Escaneando Nextcloud…
+              Sincronizando (limpieza completa)…
             </>
           ) : (
-            '↻ Sincronizar desde Nextcloud'
+            '↻ Sincronizar y limpiar desde Nextcloud'
           )}
         </button>
         {loading && (
@@ -46,13 +46,12 @@ export function SyncButton() {
 
       {result && (
         <div className="rounded-lg border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm">
-          <p className="font-medium text-green-400">
-            ✓ Sincronización completa
-          </p>
+          <p className="font-medium text-green-400">✓ Sincronización completa</p>
           <ul className="mt-1 space-y-0.5 text-xs text-[var(--color-muted)]">
-            <li>Archivos nuevos registrados: <span className="text-green-300 font-medium">{result.added}</span></li>
-            <li>Ya existían en BD: <span className="text-[var(--color-fg)]">{result.alreadyExist}</span></li>
-            <li>Ignorados (particiones, carpetas, etc.): <span className="text-[var(--color-fg)]">{result.skipped}</span></li>
+            <li>Eliminados de BD (rutas inválidas): <span className="text-red-300 font-medium">{result.deleted}</span></li>
+            <li>Archivos nuevos agregados: <span className="text-green-300 font-medium">{result.added}</span></li>
+            <li>Actualizados: <span className="text-[var(--color-fg)]">{result.updated}</span></li>
+            <li>Ignorados (ext. no válida, etc.): <span className="text-[var(--color-fg)]">{result.skipped}</span></li>
             {result.errors.length > 0 && (
               <li className="text-red-400">Errores: {result.errors.length} — {result.errors[0]}</li>
             )}

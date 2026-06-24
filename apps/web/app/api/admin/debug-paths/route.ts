@@ -20,7 +20,7 @@ async function listDav(url: string, authHeader: string): Promise<string[]> {
     const re = /<d:href>(.*?)<\/d:href>/g;
     let m;
     while ((m = re.exec(text)) !== null) {
-      names.push(decodeURIComponent(m[1]));
+      names.push(decodeURIComponent(m[1] ?? ''));
     }
     return [`status:${r.status}`, ...names];
   } catch (e) {

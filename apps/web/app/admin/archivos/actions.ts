@@ -50,8 +50,9 @@ function cleanModel(raw: string): string {
 
 export interface SyncResult {
   added: number;
+  updated: number;
+  deleted: number;
   skipped: number;
-  alreadyExist: number;
   errors: string[];
 }
 
@@ -61,29 +62,22 @@ export async function syncFromNextcloud(): Promise<SyncResult> {
   const authHeader = 'Basic ' + Buffer.from(`${NC_USER}:${NC_PASS}`).toString('base64');
   const davBase    = `${NC_URL}/remote.php/dav/files/${NC_USER}/${NC_BASE}`;
 
-  // 1. PROPFIND recursivo para obtener todos los archivos
+  // 1. PROPFIND recursivo — obtener todos los archivos de Nextcloud
   const res = await fetch(`${davBase}/`, {
     method: 'PROPFIND',
     headers: { Authorization: authHeader, Depth: 'infinity', 'Content-Type': 'application/xml' },
-    body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getcontentlength/><d:getcontenttype/><d:resourcetype/></d:prop></d:propfind>`,
+    body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getcontentlength/><d:resourcetype/></d:prop></d:propfind>`,
   });
 
-  if (!res.ok) throw new Error(`Nextcloud PROPFIND falló: ${res.status}`);
+  if (!res.ok) throw new Error(`Nextcloud PROPFIND falló: ${res.status} — verifica NEXTCLOUD_URL, NEXTCLOUD_USER, NEXTCLOUD_APP_PASSWORD`);
   const xml = await res.text();
 
-  // 2. Parsear XML manualmente (sin librería)
-  const hrefPattern  = /<d:href>([^<]+)<\/d:href>/g;
-  const isCollection = /<d:resourcetype>\s*<d:collection\s*\/>/g;
-  const sizePattern  = /<d:getcontentlength>(\d+)<\/d:getcontentlength>/g;
-
-  // Extraer bloques <d:response>
+  // 2. Parsear bloques <d:response>
   const responseBlocks = xml.split('<d:response>').slice(1);
-
-  const files: { path: string; size: bigint }[] = [];
+  const ncFiles = new Map<string, bigint>(); // storageKey → size
 
   for (const block of responseBlocks) {
-    // ¿Es carpeta?
-    if (/<d:collection/.test(block)) continue;
+    if (/<d:collection/.test(block)) continue; // es carpeta, ignorar
 
     const hrefMatch = /<d:href>([^<]+)<\/d:href>/.exec(block);
     const sizeMatch = /<d:getcontentlength>(\d+)<\/d:getcontentlength>/.exec(block);
@@ -96,59 +90,67 @@ export async function syncFromNextcloud(): Promise<SyncResult> {
     const relative = href.slice(davPath.length);
     if (!relative) continue;
 
-    files.push({
-      path: relative,
-      size: BigInt(sizeMatch?.[1] ?? '0'),
-    });
-  }
-
-  // 3. Obtener storageKeys ya existentes en BD
-  const existing = await prisma.fileItem.findMany({ select: { storageKey: true } });
-  const existingKeys = new Set(existing.map((f) => f.storageKey));
-
-  const result: SyncResult = { added: 0, skipped: 0, alreadyExist: 0, errors: [] };
-
-  for (const { path, size } of files) {
-    const parts    = path.split('/');
+    // Filtrar por extensión
+    const parts    = relative.split('/');
     const filename = parts[parts.length - 1] ?? '';
     const fileExt  = ext(filename);
+    if (!filename || filename.startsWith('.')) continue;
+    if (SKIP_EXT.has(fileExt))               continue;
+    if (isPartitionDump(filename))            continue;
+    if (!GOOD_EXT.has(fileExt) && fileExt !== '') continue;
 
-    // Filtros
-    if (!filename || filename.startsWith('.')) { result.skipped++; continue; }
-    if (SKIP_EXT.has(fileExt))               { result.skipped++; continue; }
-    if (isPartitionDump(filename))           { result.skipped++; continue; }
-    if (!GOOD_EXT.has(fileExt) && fileExt !== '') { result.skipped++; continue; }
+    ncFiles.set(relative, BigInt(sizeMatch?.[1] ?? '0'));
+  }
 
-    // Ya existe en BD
-    if (existingKeys.has(path)) { result.alreadyExist++; continue; }
+  // 3. Cargar BD actual
+  const dbItems = await prisma.fileItem.findMany({ select: { id: true, storageKey: true } });
+  const dbByKey = new Map(dbItems.map(f => [f.storageKey, f.id]));
 
-    // Parsear metadatos del path
+  const result: SyncResult = { added: 0, updated: 0, deleted: 0, skipped: 0, errors: [] };
+
+  // 4. Eliminar de BD los que ya no existen en Nextcloud
+  const toDelete = dbItems.filter(f => !ncFiles.has(f.storageKey));
+  if (toDelete.length > 0) {
+    await prisma.fileItem.deleteMany({ where: { id: { in: toDelete.map(f => f.id) } } });
+    result.deleted = toDelete.length;
+  }
+
+  // 5. Agregar / actualizar los de Nextcloud
+  for (const [path, size] of ncFiles.entries()) {
+    const parts    = path.split('/');
+    const filename = parts[parts.length - 1] ?? '';
     const brand    = parts[0] ?? 'General';
     const rawModel = parts.length > 2 ? parts.slice(1, -1).join(' / ') : null;
     const model    = rawModel ? cleanModel(rawModel) || null : null;
     const category = inferCategory(parts as string[]);
-    const title    = filename.replace(/\.[^.]+$/, ''); // sin extensión
+    const title    = filename.replace(/\.[^.]+$/, '');
+
+    const data = {
+      title,
+      brand,
+      model:      model || null,
+      category,
+      storageKey: path,
+      sizeBytes:  size > 0n ? size : null,
+      isPremium:  true,
+    };
 
     try {
-      await prisma.fileItem.create({
-        data: {
-          title,
-          brand,
-          model:    model || null,
-          category,
-          storageKey: path,
-          sizeBytes:  size > 0n ? size : null,
-          isPremium:  true,
-        },
-      });
-      existingKeys.add(path);
-      result.added++;
+      const existingId = dbByKey.get(path);
+      if (existingId) {
+        await prisma.fileItem.update({ where: { id: existingId }, data });
+        result.updated++;
+      } else {
+        await prisma.fileItem.create({ data });
+        result.added++;
+      }
     } catch (e) {
       result.errors.push(`${path}: ${(e as Error).message}`);
     }
   }
 
   revalidatePath('/admin/archivos');
+  revalidatePath('/archivos');
   return result;
 }
 
