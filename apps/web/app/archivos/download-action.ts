@@ -74,8 +74,8 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   // OCS API devuelve meta.status. Si es "failure", leer el mensaje
   if (json.ocs?.meta?.status === 'failure') {
     const msg = json.ocs.meta.message || 'Error desconocido';
-    console.error('[getDownloadUrl] OCS meta failure:', msg);
-    throw new Error(`Nextcloud: ${msg}`);
+    console.error('[getDownloadUrl] OCS meta failure:', msg, 'path:', fullPath);
+    throw new Error(`Ruta intentada: "${fullPath}" → ${msg}`);
   }
 
   const shareUrl = json.ocs?.data?.url;
