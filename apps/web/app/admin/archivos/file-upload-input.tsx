@@ -9,29 +9,32 @@ const FOLDER_SUGGESTIONS = [
   'Herramientas', 'Drivers', 'Tutoriales',
 ];
 
-// URL del Cloudflare Worker — se configura en Vercel como variable de entorno
-const WORKER_URL = process.env.NEXT_PUBLIC_UPLOAD_WORKER_URL ?? '';
-// Token secreto que el worker verifica (igual en Vercel y en el Worker)
-const WORKER_TOKEN = process.env.NEXT_PUBLIC_UPLOAD_WORKER_TOKEN ?? '';
+// Servidor Render — sube directo a Nextcloud, sin límite de tamaño
+const RENDER_URL   = (process.env.NEXT_PUBLIC_RENDER_UPLOAD_URL   ?? '').replace(/\/$/, '');
+const RENDER_TOKEN = process.env.NEXT_PUBLIC_RENDER_UPLOAD_TOKEN  ?? 'academia2024';
+const CHUNK_SIZE   = 80 * 1024 * 1024; // 80 MB por parte
 
 interface Props {
   onUploaded: (storageKey: string, sizeBytes: number, mimeType: string | null) => void;
 }
 
 export function FileUploadInput({ onUploaded }: Props) {
-  const [folder,   setFolder]   = useState('');
-  const [file,     setFile]     = useState<File | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [label,    setLabel]    = useState('');
-  const [status,   setStatus]   = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
-  const [doneKey,  setDoneKey]  = useState('');
+  const [folder,     setFolder]     = useState('');
+  const [file,       setFile]       = useState<File | null>(null);
+  const [progress,   setProgress]   = useState(0);
+  const [label,      setLabel]      = useState('');
+  const [chunkLabel, setChunkLabel] = useState('');
+  const [status,     setStatus]     = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
+  const [errorMsg,   setErrorMsg]   = useState('');
+  const [doneKey,    setDoneKey]    = useState('');
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
     setFile(f);
     setStatus('idle');
     setProgress(0);
+    setLabel('');
+    setChunkLabel('');
     setErrorMsg('');
     setDoneKey('');
   }
@@ -39,132 +42,152 @@ export function FileUploadInput({ onUploaded }: Props) {
   async function handleUpload() {
     if (!file)          { setErrorMsg('Selecciona un archivo primero'); return; }
     if (!folder.trim()) { setErrorMsg('Escribe la carpeta destino');    return; }
+    if (!RENDER_URL)    { setErrorMsg('NEXT_PUBLIC_RENDER_UPLOAD_URL no está configurado'); return; }
 
     setStatus('busy');
     setErrorMsg('');
     setProgress(0);
+    setChunkLabel('');
 
     try {
-      if (WORKER_URL) {
-        await uploadViaWorker(file, folder.trim(), onUploadProgress);
+      let storageKey: string;
+      if (file.size <= CHUNK_SIZE) {
+        storageKey = await uploadDirect(file, folder.trim());
       } else {
-        await uploadViaServer(file, folder.trim(), onUploadProgress);
+        storageKey = await uploadChunked(file, folder.trim());
       }
+      setProgress(100);
+      setLabel('Archivo guardado en Nextcloud');
+      setChunkLabel('');
+      setStatus('done');
+      setDoneKey(storageKey);
+      onUploaded(storageKey, file.size, file.type || null);
     } catch (err: unknown) {
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'Error al subir el archivo');
     }
-
-    function onUploadProgress(pct: number, lbl: string, key?: string) {
-      setProgress(pct);
-      setLabel(lbl);
-      if (key) {
-        setStatus('done');
-        setDoneKey(key);
-        onUploaded(key, file!.size, file!.type || null);
-      }
-    }
   }
 
-  // ── Upload via Cloudflare Worker (directo a Nextcloud, sin límite) ──────
-  async function uploadViaWorker(
-    file: File,
-    folder: string,
-    onProgress: (pct: number, lbl: string, key?: string) => void,
-  ) {
-    onProgress(0, 'Conectando con Nextcloud…');
+  // ── Subida directa para archivos ≤ 80 MB ────────────────────────────────
+  function uploadDirect(f: File, folder: string): Promise<string> {
+    const filename = f.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    const params   = new URLSearchParams({ folder, filename });
 
-    await new Promise<void>((resolve, reject) => {
+    setLabel('Conectando con Nextcloud…');
+
+    return new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) {
-          onProgress(
-            Math.round((e.loaded / e.total) * 100),
-            `Subiendo directo a Nextcloud… ${Math.round((e.loaded / e.total) * 100)}%`,
-          );
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setProgress(pct);
+          setLabel(`Subiendo… ${pct}% — ${fmt(e.loaded)} de ${fmt(e.total)}`);
         }
       };
 
       xhr.onload = () => {
         if (xhr.status === 200) {
-          const data = JSON.parse(xhr.responseText);
-          onProgress(100, 'Archivo guardado en Nextcloud', data.storageKey);
-          resolve();
+          resolve((JSON.parse(xhr.responseText) as { storageKey: string }).storageKey);
         } else {
           let msg = `Error ${xhr.status}`;
-          try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* noop */ }
+          try { msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg; } catch { /* noop */ }
           reject(new Error(msg));
         }
       };
+      xhr.onerror = () => reject(new Error('Error de red'));
 
-      xhr.onerror = () => reject(new Error('Error de conexión con el servidor de subida'));
-
-      const filename = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
-      xhr.open('PUT', WORKER_URL);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.setRequestHeader('x-folder',      folder);
-      xhr.setRequestHeader('x-filename',    filename);
-      xhr.setRequestHeader('x-admin-token', WORKER_TOKEN);
-      xhr.send(file);
+      xhr.open('PUT', `${RENDER_URL}/upload?${params}`);
+      xhr.setRequestHeader('Authorization', `Bearer ${RENDER_TOKEN}`);
+      xhr.setRequestHeader('Content-Type', f.type || 'application/octet-stream');
+      xhr.send(f);
     });
   }
 
-  // ── Fallback: upload via servidor Next.js (mientras Worker no esté listo) ─
-  async function uploadViaServer(
-    file: File,
-    folder: string,
-    onProgress: (pct: number, lbl: string, key?: string) => void,
-  ) {
-    onProgress(0, 'Preparando carpeta…');
+  // ── Subida por partes para archivos > 80 MB ──────────────────────────────
+  async function uploadChunked(f: File, folder: string): Promise<string> {
+    const filename    = f.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    const totalChunks = Math.ceil(f.size / CHUNK_SIZE);
+    const params      = new URLSearchParams({ folder, filename });
 
-    const params = new URLSearchParams({ folder, filename: file.name });
-    const credsRes = await fetch(`/api/admin/upload-creds?${params}`);
-    if (!credsRes.ok) {
-      const d = await credsRes.json().catch(() => ({}));
-      throw new Error(d.error ?? `HTTP ${credsRes.status}`);
-    }
-    const { storageKey } = await credsRes.json();
+    // 1. Iniciar sesión en Nextcloud
+    setLabel('Creando sesión en Nextcloud…');
+    setProgress(0);
 
-    onProgress(10, 'Subiendo archivo…');
-
-    await new Promise<void>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          const pct = 10 + Math.round((e.loaded / e.total) * 88);
-          onProgress(pct, `Subiendo… ${pct}%`);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          onProgress(100, 'Listo', storageKey);
-          resolve();
-        } else {
-          let msg = 'Error al subir el archivo';
-          try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch { /* noop */ }
-          reject(new Error(msg));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error('Error de conexión'));
-
-      const chunkParams = new URLSearchParams({ folder, filename: file.name });
-      xhr.open('PUT', `/api/admin/upload-file?${chunkParams}`);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.setRequestHeader('x-file-type', file.type || 'application/octet-stream');
-      xhr.send(file);
+    const startRes = await fetch(`${RENDER_URL}/start-upload?${params}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${RENDER_TOKEN}` },
     });
+    if (!startRes.ok) {
+      const d = await startRes.json().catch(() => ({})) as { error?: string };
+      throw new Error(d.error ?? `Error al iniciar: ${startRes.status}`);
+    }
+    const { uploadId, storageKey } = await startRes.json() as { uploadId: string; storageKey: string };
+
+    // 2. Subir cada parte
+    for (let i = 0; i < totalChunks; i++) {
+      const start  = i * CHUNK_SIZE;
+      const end    = Math.min(start + CHUNK_SIZE, f.size);
+      const chunk  = f.slice(start, end);
+      const chunkParams = new URLSearchParams({ uploadId, offset: String(start) });
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const bytesDone = start + e.loaded;
+            const pct = Math.round((bytesDone / f.size) * 100);
+            setProgress(pct);
+            setLabel(`Subiendo… ${pct}% — ${fmt(bytesDone)} de ${fmt(f.size)}`);
+            setChunkLabel(`Parte ${i + 1} de ${totalChunks}`);
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            resolve();
+          } else {
+            let msg = `Error en parte ${i + 1}: ${xhr.status}`;
+            try { msg = (JSON.parse(xhr.responseText) as { error?: string }).error ?? msg; } catch { /* noop */ }
+            reject(new Error(msg));
+          }
+        };
+        xhr.onerror = () => reject(new Error(`Error de red en parte ${i + 1}`));
+
+        xhr.open('PUT', `${RENDER_URL}/upload-chunk?${chunkParams}`);
+        xhr.setRequestHeader('Authorization', `Bearer ${RENDER_TOKEN}`);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.send(chunk);
+      });
+    }
+
+    // 3. Ensamblar en Nextcloud
+    setProgress(99);
+    setLabel('Ensamblando en Nextcloud…');
+    setChunkLabel(`${totalChunks} partes recibidas`);
+
+    const finishRes = await fetch(`${RENDER_URL}/finish-upload`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${RENDER_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ uploadId, storageKey, totalSize: f.size }),
+    });
+    if (!finishRes.ok) {
+      const d = await finishRes.json().catch(() => ({})) as { error?: string };
+      throw new Error(d.error ?? `Error al ensamblar: ${finishRes.status}`);
+    }
+
+    return storageKey;
   }
 
   return (
     <div className="space-y-3">
-      {!WORKER_URL && (
-        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
-          ⚠ Cloudflare Worker no configurado — usando servidor como intermediario.
-          Archivos grandes ({'>'}4 MB) pueden fallar en producción.
+      {!RENDER_URL && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+          ✗ NEXT_PUBLIC_RENDER_UPLOAD_URL no está configurado en Vercel.
         </div>
       )}
 
@@ -197,7 +220,12 @@ export function FileUploadInput({ onUploaded }: Props) {
         />
         {file && (
           <p className="mt-1 text-xs text-[var(--color-muted)]">
-            {file.name} — {(file.size / 1024 / 1024).toFixed(2)} MB
+            {file.name} — {fmt(file.size)}
+            {file.size > CHUNK_SIZE && (
+              <span className="ml-2 text-[var(--color-accent)]">
+                · se subirá en {Math.ceil(file.size / CHUNK_SIZE)} partes de 80 MB
+              </span>
+            )}
           </p>
         )}
       </div>
@@ -219,11 +247,14 @@ export function FileUploadInput({ onUploaded }: Props) {
         <div className="space-y-1">
           <div className="h-2 w-full rounded-full bg-[var(--color-border)] overflow-hidden">
             <div
-              className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-300"
+              className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-200"
               style={{ width: `${progress}%` }}
             />
           </div>
           <p className="text-xs text-[var(--color-muted)]">{label}</p>
+          {chunkLabel && (
+            <p className="text-xs text-[var(--color-muted)] opacity-60">{chunkLabel}</p>
+          )}
         </div>
       )}
 
@@ -243,4 +274,11 @@ export function FileUploadInput({ onUploaded }: Props) {
       )}
     </div>
   );
+}
+
+function fmt(bytes: number): string {
+  if (bytes < 1024)        return `${bytes} B`;
+  if (bytes < 1_048_576)   return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(2)} MB`;
+  return `${(bytes / 1_073_741_824).toFixed(2)} GB`;
 }
