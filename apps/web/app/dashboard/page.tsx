@@ -2,6 +2,7 @@ import { auth } from '@/auth';
 import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
 import { TopNav } from '@/components/top-nav';
+import { ProfileNameEditor } from './profile-name-editor';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,8 +37,8 @@ export default async function DashboardPage() {
       <TopNav />
       <main className="min-h-screen px-6 py-12 max-w-5xl mx-auto">
         <div className="mb-12">
-          <p className="text-sm text-[var(--color-muted)]">Bienvenido</p>
-          <h1 className="text-3xl font-bold">{session.user.name ?? session.user.email}</h1>
+          <p className="text-sm text-[var(--color-muted)] mb-1">Bienvenido</p>
+          <ProfileNameEditor initialName={session.user.name ?? session.user.email ?? ''} />
         </div>
 
         <section className="mb-12">
