@@ -18,69 +18,71 @@ interface FileItem {
   createdAt: Date;
 }
 
-interface ModelNode {
-  name: string;
+// ── Construir árbol desde storageKey (espeja estructura de Nextcloud) ─────────
+interface SubfolderNode {
+  name: string;       // e.g. "HONOR 200" o "DUMP SAMSUNG"
+  fullPath: string;   // e.g. "HONOR/HONOR 200"
   files: FileItem[];
 }
-interface FolderNode {
-  name: string;
-  models: Map<string, ModelNode>;
-}
 interface BrandNode {
-  brand: string;
-  folders: Map<string, FolderNode>;
+  name: string;
+  directFiles: FileItem[];            // archivos directamente en la carpeta de marca
+  subfolders: Map<string, SubfolderNode>;
 }
 
 function buildTree(files: FileItem[]): BrandNode[] {
-  const grouped = new Map<string, Map<string, Map<string, FileItem[]>>>();
+  const map = new Map<string, BrandNode>();
+
   for (const f of files) {
-    const brand = f.brand || 'Otros';
-    const folder = f.subcategory || 'Sin carpeta';
-    const model = f.model || folder;
-    if (!grouped.has(brand)) grouped.set(brand, new Map());
-    if (!grouped.get(brand)!.has(folder)) grouped.get(brand)!.set(folder, new Map());
-    if (!grouped.get(brand)!.get(folder)!.has(model)) grouped.get(brand)!.get(folder)!.set(model, []);
-    grouped.get(brand)!.get(folder)!.get(model)!.push(f);
-  }
-  const out: BrandNode[] = [];
-  for (const [brand, fm] of Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-    const bn: BrandNode = { brand, folders: new Map() };
-    for (const [folder, mm] of Array.from(fm.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-      const fn: FolderNode = { name: folder, models: new Map() };
-      for (const [model, fl] of Array.from(mm.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
-        fn.models.set(model, { name: model, files: fl.sort((a, b) => a.title.localeCompare(b.title)) });
+    const parts  = f.storageKey.split('/');
+    const brand  = parts[0] || f.brand || 'Otros';
+
+    if (!map.has(brand)) map.set(brand, { name: brand, directFiles: [], subfolders: new Map() });
+    const brandNode = map.get(brand)!;
+
+    if (parts.length <= 2) {
+      // Archivo directamente bajo la carpeta de marca
+      brandNode.directFiles.push(f);
+    } else {
+      // Subcarpeta(s): unir las partes intermedias como nombre visible
+      const subPath  = parts.slice(1, -1).join('/');
+      const subLabel = parts.slice(1, -1).join(' / ');
+      if (!brandNode.subfolders.has(subPath)) {
+        brandNode.subfolders.set(subPath, { name: subLabel, fullPath: `${brand}/${subPath}`, files: [] });
       }
-      bn.folders.set(folder, fn);
+      brandNode.subfolders.get(subPath)!.files.push(f);
     }
-    out.push(bn);
   }
-  return out;
+
+  return Array.from(map.values())
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((bn) => ({
+      ...bn,
+      directFiles: bn.directFiles.sort((a, b) => a.title.localeCompare(b.title)),
+      subfolders: new Map(
+        Array.from(bn.subfolders.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([k, v]) => [k, { ...v, files: v.files.sort((a, b) => a.title.localeCompare(b.title)) }]),
+      ),
+    }));
 }
 
 type ContextMenu = {
-  x: number;
-  y: number;
-  kind: 'file' | 'folder' | 'model';
+  x: number; y: number;
+  kind: 'file' | 'folder';
   file?: FileItem;
   folderPath?: string;
   folderLabel?: string;
   fileCount?: number;
 } | null;
 
-type MenuPayload =
-  | { kind: 'file'; file: FileItem }
-  | { kind: 'folder'; folderPath: string; folderLabel: string; fileCount: number }
-  | { kind: 'model'; folderPath: string; folderLabel: string; fileCount: number };
-
 export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub: boolean; userId: string }) {
   const tree = useMemo(() => buildTree(files), [files]);
 
-  // TODOS cerrados por defecto
-  const [openBrands, setOpenBrands] = useState<Set<string>>(new Set());
-  const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
-  const [openModels, setOpenModels] = useState<Set<string>>(new Set());
-  const [showAll, setShowAll] = useState<Set<string>>(new Set());
-  const [menu, setMenu] = useState<ContextMenu>(null);
+  const [openBrands,    setOpenBrands]    = useState<Set<string>>(new Set());
+  const [openSubfolder, setOpenSubfolder] = useState<Set<string>>(new Set());
+  const [showAll,       setShowAll]       = useState<Set<string>>(new Set());
+  const [menu,          setMenu]          = useState<ContextMenu>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,18 +92,12 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
     document.addEventListener('mousedown', close);
     document.addEventListener('scroll', () => setMenu(null), true);
     return () => document.removeEventListener('mousedown', close);
-  }, [menuRef]);
+  }, []);
 
-  const t = (set: Set<string>, k: string) => {
-    const n = new Set(set);
-    n.has(k) ? n.delete(k) : n.add(k);
-    return n;
-  };
-
-  const openMenu = (e: React.MouseEvent, payload: MenuPayload) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, ...payload });
+  const toggle = (set: Set<string>, key: string) => {
+    const next = new Set(set);
+    next.has(key) ? next.delete(key) : next.add(key);
+    return next;
   };
 
   if (tree.length === 0) {
@@ -114,151 +110,121 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
 
   return (
     <div className="relative space-y-2">
-      {/* Hint superior */}
       <p className="text-xs text-[var(--color-muted)] mb-2">
         💡 Click para abrir · Click derecho para más opciones
       </p>
 
       {tree.map((brandNode) => {
-        const brandOpen = openBrands.has(brandNode.brand);
-        const totalFiles = Array.from(brandNode.folders.values())
-          .reduce((s, f) => s + Array.from(f.models.values()).reduce((ss, m) => ss + m.files.length, 0), 0);
+        const brandOpen  = openBrands.has(brandNode.name);
+        const totalFiles = brandNode.directFiles.length +
+          Array.from(brandNode.subfolders.values()).reduce((s, sf) => s + sf.files.length, 0);
 
         return (
-          <div key={brandNode.brand} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden">
-            {/* Brand row */}
+          <div key={brandNode.name} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden">
+            {/* ── Marca ───────────────────────────────────────────────────── */}
             <button
-              onClick={() => setOpenBrands(t(openBrands, brandNode.brand))}
+              onClick={() => setOpenBrands(toggle(openBrands, brandNode.name))}
               className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-white/[0.03] transition-colors text-left"
             >
               <div className="flex items-center gap-2">
                 <span className="text-[var(--color-muted)] text-xs w-3">{brandOpen ? '▾' : '▸'}</span>
                 <span className="text-base">📦</span>
-                <span className="font-semibold text-sm">{brandNode.brand}</span>
+                <span className="font-semibold text-sm">{brandNode.name}</span>
               </div>
               <span className="text-xs text-[var(--color-muted)]">{totalFiles} archivos</span>
             </button>
 
             {brandOpen && (
               <div className="border-t border-[var(--color-border)]">
-                {Array.from(brandNode.folders.values()).map((folder) => {
-                  const folderKey = `${brandNode.brand}/${folder.name}`;
-                  const folderOpen = openFolders.has(folderKey);
-                  const folderFiles = Array.from(folder.models.values()).reduce((s, m) => s + m.files.length, 0);
-                  const folderPath = `/AcademiaJRubio/${folder.name}`;
+                {/* Archivos directos en la carpeta de marca */}
+                {brandNode.directFiles.map((f) => {
+                  const blocked = f.isPremium && !hasSub;
+                  return (
+                    <div
+                      key={f.id}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setMenu({ x: e.clientX, y: e.clientY, kind: 'file', file: f });
+                      }}
+                      className={`flex items-center justify-between gap-3 pl-10 pr-4 py-1.5 hover:bg-white/[0.04] ${blocked ? 'opacity-60' : ''}`}
+                    >
+                      <div className="min-w-0 flex-1 flex items-center gap-2">
+                        <span className="text-xs">📄</span>
+                        <span className="text-xs text-[var(--color-fg)] truncate">{f.title}</span>
+                        {f.isPremium && (
+                          <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[9px] font-medium text-[var(--color-accent)]">PRO</span>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">{f.sizeBytes ? bytes(f.sizeBytes) : ''}</span>
+                        <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} />
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* ── Subcarpetas ─────────────────────────────────────────── */}
+                {Array.from(brandNode.subfolders.values()).map((sf) => {
+                  const sfKey  = sf.fullPath;
+                  const sfOpen = openSubfolder.has(sfKey);
+                  const limit  = showAll.has(sfKey) ? sf.files.length : 30;
 
                   return (
-                    <div key={folderKey}>
-                      {/* Folder row */}
+                    <div key={sfKey}>
+                      {/* Fila de subcarpeta */}
                       <div className="flex items-center pl-9 pr-4 py-2 hover:bg-white/[0.03] group">
                         <button
-                          onClick={() => setOpenFolders(t(openFolders, folderKey))}
-                          onContextMenu={(e) =>
-                            openMenu(e, { kind: 'folder', folderPath, folderLabel: folder.name, fileCount: folderFiles })
-                          }
+                          onClick={() => setOpenSubfolder(toggle(openSubfolder, sfKey))}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: sf.fullPath, folderLabel: sf.name, fileCount: sf.files.length });
+                          }}
                           className="flex-1 flex items-center gap-2 text-left min-w-0"
                         >
-                          <span className="text-[var(--color-muted)] text-xs w-3">{folderOpen ? '▾' : '▸'}</span>
+                          <span className="text-[var(--color-muted)] text-xs w-3">{sfOpen ? '▾' : '▸'}</span>
                           <span>📁</span>
-                          <span className="text-sm truncate">{folder.name}</span>
-                          <span className="text-xs text-[var(--color-muted)] ml-1">({folderFiles})</span>
+                          <span className="text-sm truncate">{sf.name}</span>
+                          <span className="text-xs text-[var(--color-muted)] ml-1">({sf.files.length})</span>
                         </button>
-                        {/* Botón ZIP de carpeta a la derecha, siempre visible */}
-                        <DownloadFolderButton
-                          folderPath={folderPath}
-                          label={`⬇ ZIP`}
-                        />
+                        <DownloadFolderButton folderPath={sf.fullPath} label="⬇ ZIP" />
                       </div>
 
-                      {folderOpen && (
-                        <div>
-                          {Array.from(folder.models.values()).map((modelNode) => {
-                            const modelKey = `${folderKey}/${modelNode.name}`;
-                            const modelOpen = openModels.has(modelKey);
-                            const modelPath = `${folderPath}${modelNode.name !== folder.name ? '/' + modelNode.name : ''}`;
-
+                      {/* Archivos dentro de la subcarpeta */}
+                      {sfOpen && (
+                        <div className="bg-black/20">
+                          {sf.files.slice(0, limit).map((f) => {
+                            const blocked = f.isPremium && !hasSub;
                             return (
-                              <div key={modelKey}>
-                                {/* Model row */}
-                                <div className="flex items-center pl-14 pr-4 py-1.5 hover:bg-white/[0.03] group">
-                                  <button
-                                    onClick={() => setOpenModels(t(openModels, modelKey))}
-                                    onContextMenu={(e) =>
-                                      openMenu(e, {
-                                        kind: 'model',
-                                        folderPath: modelPath,
-                                        folderLabel: modelNode.name,
-                                        fileCount: modelNode.files.length,
-                                      })
-                                    }
-                                    className="flex-1 flex items-center gap-2 text-left min-w-0"
-                                  >
-                                    <span className="text-[var(--color-muted)] text-xs w-3">{modelOpen ? '▾' : '▸'}</span>
-                                    <span className="text-sm">📱</span>
-                                    <span className="text-sm text-[var(--color-fg)] truncate">{modelNode.name}</span>
-                                    <span className="text-xs text-[var(--color-muted)] ml-1">({modelNode.files.length})</span>
-                                  </button>
-                                  {/* Botón ZIP a la derecha, siempre visible */}
-                                  <DownloadFolderButton
-                                    folderPath={modelPath}
-                                    label={`⬇ ZIP`}
-                                  />
+                              <div
+                                key={f.id}
+                                onContextMenu={(e) => {
+                                  e.preventDefault();
+                                  setMenu({ x: e.clientX, y: e.clientY, kind: 'file', file: f });
+                                }}
+                                className={`flex items-center justify-between gap-3 pl-16 pr-4 py-1.5 hover:bg-white/[0.04] ${blocked ? 'opacity-60' : ''}`}
+                              >
+                                <div className="min-w-0 flex-1 flex items-center gap-2">
+                                  <span className="text-xs">📄</span>
+                                  <span className="text-xs text-[var(--color-fg)] truncate">{f.title}</span>
+                                  {f.isPremium && (
+                                    <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[9px] font-medium text-[var(--color-accent)]">PRO</span>
+                                  )}
                                 </div>
-
-                                {modelOpen && (
-                                  <div className="bg-black/20">
-                                    {(() => {
-                                      const limit = showAll.has(modelKey) ? modelNode.files.length : 20;
-                                      const visible = modelNode.files.slice(0, limit);
-                                      return (
-                                        <>
-                                          {visible.map((f) => {
-                                            const blocked = f.isPremium && !hasSub;
-                                            return (
-                                              <div
-                                                key={f.id}
-                                                onContextMenu={(e) => openMenu(e, { kind: 'file', file: f })}
-                                                className={`group flex items-center justify-between gap-3 pl-20 pr-4 py-1.5 hover:bg-white/[0.04] ${blocked ? 'opacity-60' : ''}`}
-                                              >
-                                                <div className="min-w-0 flex-1 flex items-center gap-2">
-                                                  <span className="text-xs">📄</span>
-                                                  <span className="text-xs text-[var(--color-fg)] truncate">{f.title}</span>
-                                                  {f.isPremium && (
-                                                    <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[9px] font-medium text-[var(--color-accent)]">
-                                                      PRO
-                                                    </span>
-                                                  )}
-                                                </div>
-                                                <div className="shrink-0 flex items-center gap-2">
-                                                  <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">
-                                                    {f.sizeBytes ? bytes(f.sizeBytes) : ''}
-                                                  </span>
-                                                  <DownloadButton
-                                                    fileId={f.id}
-                                                    storageKey={f.storageKey}
-                                                    blocked={blocked}
-                                                    userId={userId}
-                                                  />
-                                                </div>
-                                              </div>
-                                            );
-                                          })}
-                                          {modelNode.files.length > 20 && (
-                                            <button
-                                              onClick={() => setShowAll(t(showAll, modelKey))}
-                                              className="block w-full text-left pl-20 pr-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-white/[0.03]"
-                                            >
-                                              {showAll.has(modelKey) ? '▲ Ver menos' : `▼ Ver ${modelNode.files.length - 20} más`}
-                                            </button>
-                                          )}
-                                        </>
-                                      );
-                                    })()}
-                                  </div>
-                                )}
+                                <div className="shrink-0 flex items-center gap-2">
+                                  <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">{f.sizeBytes ? bytes(f.sizeBytes) : ''}</span>
+                                  <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} />
+                                </div>
                               </div>
                             );
                           })}
+                          {sf.files.length > 30 && (
+                            <button
+                              onClick={() => setShowAll(toggle(showAll, sfKey))}
+                              className="block w-full text-left pl-16 pr-4 py-1.5 text-xs text-[var(--color-accent)] hover:bg-white/[0.03]"
+                            >
+                              {showAll.has(sfKey) ? '▲ Ver menos' : `▼ Ver ${sf.files.length - 30} más`}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -270,7 +236,7 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
         );
       })}
 
-      {/* Context menu */}
+      {/* Menú contextual */}
       {menu && (
         <div
           ref={menuRef}
@@ -287,10 +253,10 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
               label="⬇ Descargar archivo"
             />
           )}
-          {(menu.kind === 'folder' || menu.kind === 'model') && menu.folderPath && (
+          {menu.kind === 'folder' && menu.folderPath && (
             <DownloadFolderButton
               folderPath={menu.folderPath}
-              label={`⬇ Descargar ${menu.kind === 'folder' ? 'carpeta' : 'modelo'} (${menu.fileCount})`}
+              label={`⬇ Descargar carpeta (${menu.fileCount})`}
               asMenuItem
             />
           )}
