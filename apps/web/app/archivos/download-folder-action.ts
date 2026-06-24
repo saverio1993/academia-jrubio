@@ -90,7 +90,7 @@ export async function downloadFolderZip(folderPath: string): Promise<FolderResul
       if (!hasSub) return { ok: false, code: 'NO_SUBSCRIPTION', message: 'Descarga de carpetas requiere suscripción' };
     }
 
-    const ncBase        = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio').replace(/\/+$/, '');
+    const ncBase        = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
     const absoluteFolder = folderPath.startsWith('/') ? folderPath : `${ncBase}/${folderPath}`;
     const share          = await createNextcloudFolderShare(absoluteFolder);
     const downloadUrl    = share.url.endsWith('/') ? `${share.url}download` : `${share.url}/download`;

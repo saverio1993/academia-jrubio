@@ -30,7 +30,7 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   if (storageKey.startsWith('/')) {
     fullPath = storageKey;
   } else {
-    const ncBase = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio').replace(/\/+$/, '');
+    const ncBase = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
     fullPath = ncBase + '/' + storageKey;
   }
 
