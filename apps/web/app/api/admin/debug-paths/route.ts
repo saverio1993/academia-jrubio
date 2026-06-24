@@ -4,7 +4,29 @@ import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 
 export const dynamic = 'force-dynamic';
-export const runtime  = 'nodejs';
+export const runtime = 'nodejs';
+
+const PROPFIND_BODY = `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:displayname/><d:resourcetype/><d:getcontentlength/></d:prop></d:propfind>`;
+
+async function listDav(url: string, authHeader: string): Promise<string[]> {
+  try {
+    const r = await fetch(url, {
+      method: 'PROPFIND',
+      headers: { Authorization: authHeader, Depth: '1', 'Content-Type': 'application/xml' },
+      body: PROPFIND_BODY,
+    });
+    const text = await r.text();
+    const names: string[] = [];
+    const re = /<d:href>(.*?)<\/d:href>/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      names.push(decodeURIComponent(m[1]));
+    }
+    return [`status:${r.status}`, ...names];
+  } catch (e) {
+    return [`error: ${e}`];
+  }
+}
 
 export async function GET() {
   const session = await auth();
@@ -19,57 +41,16 @@ export async function GET() {
 
   const authHeader = 'Basic ' + Buffer.from(`${ncUser}:${ncPassword}`).toString('base64');
 
-  // Tomar 3 archivos de muestra
-  const sample = await prisma.fileItem.findMany({
-    select: { title: true, storageKey: true },
-    take: 3,
-    orderBy: { storageKey: 'asc' },
+  const davRoot     = `${ncUrl}/remote.php/dav/files/${ncUser}`;
+  const rootContent = await listDav(davRoot + '/', authHeader);
+  const acadContent = await listDav(davRoot + '/AcademiaJRubio/', authHeader);
+  const filesContent = await listDav(davRoot + '/AcademiaJRubio/files/', authHeader);
+
+  return NextResponse.json({
+    ncUrl, ncUser, ncBase,
+    davRoot,
+    '1_root_carpetas': rootContent,
+    '2_AcademiaJRubio_carpetas': acadContent,
+    '3_AcademiaJRubio_files_carpetas': filesContent,
   });
-
-  // Para cada archivo, probar WebDAV HEAD y OCS API
-  const tests = await Promise.all(sample.map(async (f) => {
-    const fullPath = `${ncBase}/${f.storageKey}`;
-    const davUrl   = `${ncUrl}/remote.php/dav/files/${ncUser}${fullPath}`;
-    const ocsUrl   = `${ncUrl}/ocs/v2.php/apps/files_sharing/api/v1/shares`;
-
-    // 1. Verificar si el archivo existe vía WebDAV
-    let davStatus = 0;
-    let davOk = false;
-    try {
-      const r = await fetch(davUrl, { method: 'HEAD', headers: { Authorization: authHeader } });
-      davStatus = r.status;
-      davOk = r.status === 200 || r.status === 207;
-    } catch (e) { davStatus = -1; }
-
-    // 2. Intentar crear share OCS
-    let ocsStatus = 0;
-    let ocsMsg = '';
-    try {
-      const body = new URLSearchParams({
-        path: fullPath, shareType: '3', permissions: '1',
-      }).toString();
-      const r = await fetch(ocsUrl, {
-        method: 'POST',
-        headers: { Authorization: authHeader, 'OCS-APIRequest': 'true', Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body,
-      });
-      ocsStatus = r.status;
-      const j = await r.json() as { ocs?: { meta?: { status?: string; message?: string }; data?: { url?: string } } };
-      ocsMsg = j.ocs?.meta?.message ?? j.ocs?.meta?.status ?? 'ok';
-      if (j.ocs?.data?.url) ocsMsg = '✅ URL: ' + j.ocs.data.url;
-    } catch (e) { ocsMsg = String(e); }
-
-    return {
-      title: f.title,
-      storageKey: f.storageKey,
-      fullPath,
-      davUrl,
-      davStatus,
-      davOk,
-      ocsStatus,
-      ocsMsg,
-    };
-  }));
-
-  return NextResponse.json({ ncUrl, ncUser, ncBase, tests });
 }
