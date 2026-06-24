@@ -32,7 +32,6 @@
       padding: 24px 16px 48px;
     }
 
-    /* ── Header ── */
     header {
       width: 100%;
       max-width: 640px;
@@ -42,202 +41,96 @@
       margin-bottom: 32px;
     }
     .logo-badge {
-      width: 44px;
-      height: 44px;
+      width: 44px; height: 44px;
       border-radius: 10px;
       background: var(--accent);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 22px;
-      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
     }
     header h1 { font-size: 1.2rem; font-weight: 700; }
     header p  { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 
-    /* ── Card ── */
     .card {
-      width: 100%;
-      max-width: 640px;
+      width: 100%; max-width: 640px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 28px;
     }
     .card + .card { margin-top: 16px; }
+    h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; }
 
-    h2 { font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--fg); }
-
-    /* ── Form elements ── */
-    label {
-      display: block;
-      font-size: 0.75rem;
-      color: var(--muted);
-      margin-bottom: 6px;
-      font-weight: 500;
-    }
-    input[type="text"],
-    input[type="password"],
-    select {
+    label { display: block; font-size: 0.75rem; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    input[type="text"], input[type="password"] {
       width: 100%;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 0.9rem;
-      color: var(--fg);
-      outline: none;
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 12px; font-size: 0.9rem; color: var(--fg); outline: none;
       transition: border-color 0.15s;
     }
-    input:focus, select:focus { border-color: var(--accent); }
-
+    input:focus { border-color: var(--accent); }
     .field { margin-bottom: 16px; }
 
-    /* ── Quick folder buttons ── */
-    .quick-folders {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
+    .quick-folders { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
     .qf-btn {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 10px;
-      font-size: 0.75rem;
-      color: var(--muted);
-      cursor: pointer;
-      transition: all 0.15s;
+      background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 10px; font-size: 0.75rem; color: var(--muted);
+      cursor: pointer; transition: all 0.15s;
     }
     .qf-btn:hover { border-color: var(--accent); color: var(--accent2); }
 
-    /* ── File drop zone ── */
     .dropzone {
-      border: 2px dashed var(--border);
-      border-radius: 10px;
-      padding: 32px 20px;
-      text-align: center;
-      cursor: pointer;
-      transition: all 0.2s;
-      position: relative;
+      border: 2px dashed var(--border); border-radius: 10px;
+      padding: 32px 20px; text-align: center; cursor: pointer;
+      transition: all 0.2s; position: relative;
     }
-    .dropzone:hover,
-    .dropzone.drag-over { border-color: var(--accent); background: rgba(232,124,30,0.04); }
-    .dropzone input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
+    .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: rgba(232,124,30,0.04); }
+    .dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
     .dropzone-icon { font-size: 2rem; margin-bottom: 8px; }
     .dropzone-text { font-size: 0.85rem; color: var(--muted); }
     .dropzone-text strong { color: var(--fg); }
+
     .file-info {
-      margin-top: 10px;
-      padding: 10px 14px;
-      background: var(--card);
-      border-radius: 8px;
-      font-size: 0.82rem;
-      color: var(--fg);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      margin-top: 10px; padding: 10px 14px;
+      background: var(--card); border-radius: 8px;
+      font-size: 0.82rem; display: flex; justify-content: space-between; align-items: center;
     }
     .file-size { color: var(--muted); font-size: 0.78rem; }
 
-    /* ── Progress ── */
     .progress-wrap { margin-top: 16px; display: none; }
-    .progress-bar-bg {
-      height: 8px;
-      background: var(--border);
-      border-radius: 999px;
-      overflow: hidden;
-    }
+    .progress-bar-bg { height: 10px; background: var(--border); border-radius: 999px; overflow: hidden; }
     .progress-bar-fill {
-      height: 8px;
+      height: 10px;
       background: linear-gradient(90deg, var(--accent), var(--accent2));
-      border-radius: 999px;
-      width: 0%;
-      transition: width 0.3s;
+      border-radius: 999px; width: 0%; transition: width 0.2s;
     }
     .progress-label { font-size: 0.78rem; color: var(--muted); margin-top: 6px; }
+    .chunk-label   { font-size: 0.72rem; color: var(--muted); margin-top: 3px; }
 
-    /* ── Button ── */
-    .btn {
-      width: 100%;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      transition: all 0.15s;
-      margin-top: 16px;
-    }
+    .btn { width: 100%; padding: 12px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; margin-top: 16px; }
     .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover:not(:disabled) { background: var(--accent2); }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-ghost {
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--muted);
-      margin-top: 8px;
-    }
+    .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-ghost { background: var(--card); border: 1px solid var(--border); color: var(--muted); margin-top: 8px; }
     .btn-ghost:hover { border-color: var(--accent); color: var(--fg); }
 
-    /* ── Alerts ── */
-    .alert {
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      margin-top: 12px;
-    }
-    .alert-success {
-      background: rgba(34,197,94,0.1);
-      border: 1px solid rgba(34,197,94,0.3);
-      color: var(--green);
-    }
-    .alert-error {
-      background: rgba(239,68,68,0.1);
-      border: 1px solid rgba(239,68,68,0.3);
-      color: var(--red);
-    }
+    .alert { padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; margin-top: 12px; }
+    .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+    .alert-error   { background: rgba(239,68,68,0.1);  border: 1px solid rgba(239,68,68,0.3);  color: var(--red); }
     .storage-key {
-      margin-top: 8px;
-      font-family: monospace;
-      font-size: 0.78rem;
-      background: var(--card);
-      padding: 8px 10px;
-      border-radius: 6px;
-      color: var(--green);
-      word-break: break-all;
-      cursor: pointer;
+      margin-top: 8px; font-family: monospace; font-size: 0.78rem;
+      background: var(--card); padding: 8px 10px; border-radius: 6px;
+      color: var(--green); word-break: break-all; cursor: pointer;
       border: 1px solid rgba(34,197,94,0.2);
     }
     .storage-key:hover { border-color: var(--green); }
     .copy-hint { font-size: 0.7rem; color: var(--muted); margin-top: 4px; }
 
-    /* ── Auth gate ── */
+    .divider { height: 1px; background: var(--border); margin: 20px 0; }
+
     #auth-gate { display: block; }
-    #uploader   { display: none; }
+    #uploader  { display: none; }
 
-    /* ── Divider ── */
-    .divider {
-      height: 1px;
-      background: var(--border);
-      margin: 20px 0;
-    }
-
-    /* ── Footer ── */
-    footer {
-      margin-top: 32px;
-      font-size: 0.72rem;
-      color: var(--muted);
-      text-align: center;
-    }
+    footer { margin-top: 32px; font-size: 0.72rem; color: var(--muted); text-align: center; }
   </style>
 </head>
 <body>
@@ -246,11 +139,11 @@
   <div class="logo-badge">📁</div>
   <div>
     <h1>Academia J Rubio</h1>
-    <p>Portal de subida de archivos — directo a Nextcloud, sin límite de tamaño</p>
+    <p>Portal de subida — directo a Nextcloud, sin límite de tamaño</p>
   </div>
 </header>
 
-<!-- ── Auth gate ──────────────────────────────────────────────── -->
+<!-- Auth gate -->
 <div class="card" id="auth-gate">
   <h2>🔒 Acceso de administrador</h2>
   <div class="field">
@@ -261,12 +154,11 @@
   <div id="auth-error" class="alert alert-error" style="display:none"></div>
 </div>
 
-<!-- ── Upload panel ───────────────────────────────────────────── -->
+<!-- Uploader -->
 <div class="card" id="uploader">
   <h2>📂 Carpeta destino en Nextcloud</h2>
 
-  <!-- Quick pickers -->
-  <div class="quick-folders" id="qf-brand">
+  <div class="quick-folders">
     <span style="font-size:0.72rem;color:var(--muted);align-self:center;">Marca:</span>
     <button class="qf-btn" onclick="setFolder('Samsung')">Samsung</button>
     <button class="qf-btn" onclick="setFolder('Xiaomi')">Xiaomi</button>
@@ -276,8 +168,7 @@
     <button class="qf-btn" onclick="setFolder('iPhone')">iPhone</button>
     <button class="qf-btn" onclick="setFolder('LG')">LG</button>
   </div>
-
-  <div class="quick-folders" id="qf-type">
+  <div class="quick-folders">
     <span style="font-size:0.72rem;color:var(--muted);align-self:center;">Tipo:</span>
     <button class="qf-btn" onclick="appendFolder('Firmware')">Firmware</button>
     <button class="qf-btn" onclick="appendFolder('FRP')">FRP</button>
@@ -289,7 +180,7 @@
   </div>
 
   <div class="field" style="margin-top:10px;">
-    <label>Ruta completa de carpeta *</label>
+    <label>Ruta completa *</label>
     <input type="text" id="folder-input" placeholder="Samsung/A55/Firmware" list="folder-suggestions" />
     <datalist id="folder-suggestions">
       <option value="Samsung/Firmware"><option value="Samsung/FRP">
@@ -302,14 +193,10 @@
   </div>
 
   <div class="divider"></div>
-
   <h2>⬆ Archivo a subir</h2>
 
-  <!-- Drop zone -->
   <div class="dropzone" id="dropzone"
-       ondragover="handleDragOver(event)"
-       ondragleave="handleDragLeave(event)"
-       ondrop="handleDrop(event)">
+       ondragover="handleDragOver(event)" ondragleave="handleDragLeave()" ondrop="handleDrop(event)">
     <input type="file" id="file-input" onchange="handleFileSelect(event)" />
     <div class="dropzone-icon">📦</div>
     <div class="dropzone-text">
@@ -323,12 +210,12 @@
     <span class="file-size" id="file-size-display"></span>
   </div>
 
-  <!-- Progress -->
   <div class="progress-wrap" id="progress-wrap">
     <div class="progress-bar-bg">
       <div class="progress-bar-fill" id="progress-fill"></div>
     </div>
-    <p class="progress-label" id="progress-label">Preparando…</p>
+    <p class="progress-label" id="progress-label"></p>
+    <p class="chunk-label"    id="chunk-label"></p>
   </div>
 
   <button class="btn btn-primary" id="upload-btn" onclick="doUpload()" disabled>
@@ -336,7 +223,6 @@
   </button>
   <button class="btn btn-ghost" onclick="resetForm()">Limpiar</button>
 
-  <!-- Result -->
   <div id="result"></div>
 </div>
 
@@ -344,10 +230,10 @@
 
 <script>
   // ── State ──────────────────────────────────────────────────────────────────
-  let token    = sessionStorage.getItem('upload_token') ?? '';
+  const CHUNK_SIZE = 15 * 1024 * 1024; // 15 MB por parte
+  let token        = sessionStorage.getItem('upload_token') ?? '';
   let selectedFile = null;
 
-  // Mostrar uploader si ya hay token guardado
   if (token) showUploader();
 
   // ── Auth ───────────────────────────────────────────────────────────────────
@@ -358,24 +244,14 @@
   async function doLogin() {
     const input = document.getElementById('token-input').value.trim();
     if (!input) return;
-
-    // Verificar contra el servidor
     try {
-      const res = await fetch('/upload?folder=.check&filename=.ping', {
-        method: 'PUT',
-        headers: { 'Authorization': 'Bearer ' + input, 'Content-Type': 'text/plain', 'Content-Length': '0' },
-        body: '',
-      });
-      // 401 = clave incorrecta, cualquier otra cosa = clave correcta
+      const res = await fetch('/health', { headers: { Authorization: 'Bearer ' + input } });
       if (res.status === 401) {
         document.getElementById('auth-error').textContent = 'Contraseña incorrecta';
         document.getElementById('auth-error').style.display = 'block';
         return;
       }
-    } catch {
-      // Error de red — intentar de todos modos (puede ser CORS, etc.)
-    }
-
+    } catch { /* puede ser CORS, intentar de todos modos */ }
     token = input;
     sessionStorage.setItem('upload_token', token);
     showUploader();
@@ -387,39 +263,24 @@
   }
 
   // ── Folder helpers ─────────────────────────────────────────────────────────
-  function setFolder(val) {
-    document.getElementById('folder-input').value = val;
-  }
+  function setFolder(val) { document.getElementById('folder-input').value = val; }
   function appendFolder(sub) {
-    const current = document.getElementById('folder-input').value.trim();
-    if (!current) {
-      document.getElementById('folder-input').value = sub;
-    } else {
-      // Si ya termina en /sub, no duplicar
-      if (!current.endsWith('/' + sub)) {
-        document.getElementById('folder-input').value = current.replace(/\/[^\/]+$/, '') + '/' + sub;
-      }
-    }
+    const cur = document.getElementById('folder-input').value.trim();
+    if (!cur) { setFolder(sub); return; }
+    const base = cur.includes('/') ? cur.replace(/\/[^\/]+$/, '') : cur;
+    document.getElementById('folder-input').value = base + '/' + sub;
   }
 
-  // ── File drag & drop ───────────────────────────────────────────────────────
-  function handleDragOver(e) {
-    e.preventDefault();
-    document.getElementById('dropzone').classList.add('drag-over');
-  }
-  function handleDragLeave() {
-    document.getElementById('dropzone').classList.remove('drag-over');
-  }
+  // ── Drag & drop ────────────────────────────────────────────────────────────
+  function handleDragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('drag-over'); }
+  function handleDragLeave() { document.getElementById('dropzone').classList.remove('drag-over'); }
   function handleDrop(e) {
     e.preventDefault();
     document.getElementById('dropzone').classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) selectFile(file);
+    const f = e.dataTransfer.files[0];
+    if (f) selectFile(f);
   }
-  function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) selectFile(file);
-  }
+  function handleFileSelect(e) { const f = e.target.files[0]; if (f) selectFile(f); }
 
   function selectFile(file) {
     selectedFile = file;
@@ -429,67 +290,136 @@
     document.getElementById('upload-btn').disabled = false;
     document.getElementById('result').innerHTML = '';
     document.getElementById('progress-wrap').style.display = 'none';
-    setProgress(0, '');
   }
 
-  function formatSize(bytes) {
-    if (bytes < 1024)           return bytes + ' B';
-    if (bytes < 1024 * 1024)    return (bytes / 1024).toFixed(1) + ' KB';
-    if (bytes < 1024**3)        return (bytes / 1024 / 1024).toFixed(2) + ' MB';
-    return (bytes / 1024**3).toFixed(2) + ' GB';
+  function formatSize(b) {
+    if (b < 1024)       return b + ' B';
+    if (b < 1048576)    return (b/1024).toFixed(1) + ' KB';
+    if (b < 1073741824) return (b/1048576).toFixed(2) + ' MB';
+    return (b/1073741824).toFixed(2) + ' GB';
   }
 
-  // ── Upload ─────────────────────────────────────────────────────────────────
-  function doUpload() {
+  // ── Upload principal ────────────────────────────────────────────────────────
+  async function doUpload() {
     const folder = document.getElementById('folder-input').value.trim();
     if (!selectedFile) { showResult('error', 'Selecciona un archivo primero'); return; }
-    if (!folder)       { showResult('error', 'Escribe la carpeta destino'); return; }
-
-    const filename = selectedFile.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
-    const params   = new URLSearchParams({ folder, filename });
-    const url      = `/upload?${params}`;
+    if (!folder)       { showResult('error', 'Escribe la carpeta destino');    return; }
 
     document.getElementById('upload-btn').disabled = true;
     document.getElementById('progress-wrap').style.display = 'block';
     document.getElementById('result').innerHTML = '';
-    setProgress(0, 'Conectando…');
+    setProgress(0, 'Iniciando…', '');
 
-    const xhr = new XMLHttpRequest();
-
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) {
-        const pct = Math.round((e.loaded / e.total) * 100);
-        setProgress(pct, `Subiendo… ${pct}% — ${formatSize(e.loaded)} de ${formatSize(e.total)}`);
-      }
-    };
-
-    xhr.onload = () => {
-      if (xhr.status === 200) {
-        const data = JSON.parse(xhr.responseText);
-        setProgress(100, 'Completado');
-        showResult('success', data.storageKey);
+    try {
+      let storageKey;
+      if (selectedFile.size <= CHUNK_SIZE) {
+        storageKey = await uploadDirect(folder, selectedFile);
       } else {
-        let msg = `Error ${xhr.status}`;
-        try { msg = JSON.parse(xhr.responseText).error ?? msg; } catch {}
-        showResult('error', msg);
-        document.getElementById('upload-btn').disabled = false;
+        storageKey = await uploadChunked(folder, selectedFile);
       }
-    };
-
-    xhr.onerror = () => {
-      showResult('error', 'Error de red — verifica tu conexión');
+      setProgress(100, 'Completado', '');
+      showResult('success', storageKey);
+    } catch (err) {
+      showResult('error', err.message);
       document.getElementById('upload-btn').disabled = false;
-    };
-
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Authorization', 'Bearer ' + token);
-    xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
-    xhr.send(selectedFile);
+    }
   }
 
-  function setProgress(pct, label) {
-    document.getElementById('progress-fill').style.width = pct + '%';
-    if (label) document.getElementById('progress-label').textContent = label;
+  // ── Subida directa (archivos ≤ 15 MB) ─────────────────────────────────────
+  function uploadDirect(folder, file) {
+    const filename = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    const params   = new URLSearchParams({ folder, filename });
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round(e.loaded / e.total * 100);
+          setProgress(pct, `Subiendo… ${pct}% — ${formatSize(e.loaded)} de ${formatSize(e.total)}`, '');
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status === 200) { resolve(JSON.parse(xhr.responseText).storageKey); }
+        else { let m = `Error ${xhr.status}`; try { m = JSON.parse(xhr.responseText).error ?? m; } catch {} reject(new Error(m)); }
+      };
+      xhr.onerror = () => reject(new Error('Error de red'));
+      xhr.open('PUT', `/upload?${params}`);
+      xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.send(file);
+    });
+  }
+
+  // ── Subida por partes (archivos > 15 MB) ──────────────────────────────────
+  async function uploadChunked(folder, file) {
+    const filename    = file.name.replace(/[^a-zA-Z0-9._\-() ]/g, '_');
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    const params      = new URLSearchParams({ folder, filename });
+
+    // 1. Iniciar sesión
+    setProgress(0, 'Creando sesión en Nextcloud…', '');
+    const startRes = await fetch(`/start-upload?${params}`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+    });
+    if (!startRes.ok) {
+      const d = await startRes.json().catch(() => ({}));
+      throw new Error(d.error ?? `Error al iniciar: ${startRes.status}`);
+    }
+    const { uploadId, storageKey } = await startRes.json();
+
+    // 2. Subir partes
+    for (let i = 0; i < totalChunks; i++) {
+      const start  = i * CHUNK_SIZE;
+      const end    = Math.min(start + CHUNK_SIZE, file.size);
+      const chunk  = file.slice(start, end);
+      const chunkParams = new URLSearchParams({ uploadId, offset: start });
+
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable) {
+            const bytesDone = start + e.loaded;
+            const pct = Math.round(bytesDone / file.size * 100);
+            setProgress(
+              pct,
+              `Subiendo… ${pct}% — ${formatSize(bytesDone)} de ${formatSize(file.size)}`,
+              `Parte ${i + 1} de ${totalChunks}`
+            );
+          }
+        };
+        xhr.onload = () => {
+          if (xhr.status === 200) resolve();
+          else { let m = `Error parte ${i+1}: ${xhr.status}`; try { m = JSON.parse(xhr.responseText).error ?? m; } catch {} reject(new Error(m)); }
+        };
+        xhr.onerror = () => reject(new Error(`Error de red en parte ${i + 1}`));
+        xhr.open('PUT', `/upload-chunk?${chunkParams}`);
+        xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.send(chunk);
+      });
+    }
+
+    // 3. Ensamblar en Nextcloud
+    setProgress(99, 'Ensamblando archivo en Nextcloud…', `${totalChunks} partes recibidas`);
+    const finishRes = await fetch('/finish-upload', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uploadId, storageKey, totalSize: file.size }),
+    });
+    if (!finishRes.ok) {
+      const d = await finishRes.json().catch(() => ({}));
+      throw new Error(d.error ?? `Error al ensamblar: ${finishRes.status}`);
+    }
+
+    return storageKey;
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────────────────────
+  function setProgress(pct, label, chunk) {
+    document.getElementById('progress-fill').style.width  = pct + '%';
+    document.getElementById('progress-label').textContent = label;
+    document.getElementById('chunk-label').textContent    = chunk;
   }
 
   function showResult(type, payload) {
@@ -497,9 +427,9 @@
     if (type === 'success') {
       div.innerHTML = `
         <div class="alert alert-success">
-          ✓ Archivo guardado correctamente en Nextcloud
+          ✓ Archivo guardado en Nextcloud
           <div class="storage-key" id="key-text" onclick="copyKey()" title="Clic para copiar">${payload}</div>
-          <p class="copy-hint">↑ Clic para copiar la ruta — pégala en el campo "Ruta" del panel admin</p>
+          <p class="copy-hint">↑ Clic para copiar la ruta — pégala en el panel admin</p>
         </div>`;
     } else {
       div.innerHTML = `<div class="alert alert-error">✗ ${payload}</div>`;
@@ -507,21 +437,22 @@
   }
 
   function copyKey() {
-    const text = document.getElementById('key-text').textContent;
-    navigator.clipboard.writeText(text).then(() => {
-      document.getElementById('key-text').textContent = '¡Copiado!';
-      setTimeout(() => { document.getElementById('key-text').textContent = text; }, 1500);
+    const el = document.getElementById('key-text');
+    navigator.clipboard.writeText(el.textContent).then(() => {
+      const orig = el.textContent;
+      el.textContent = '¡Copiado!';
+      setTimeout(() => { el.textContent = orig; }, 1500);
     });
   }
 
   function resetForm() {
     selectedFile = null;
     document.getElementById('file-input').value = '';
-    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('file-info').style.display   = 'none';
     document.getElementById('progress-wrap').style.display = 'none';
     document.getElementById('result').innerHTML = '';
     document.getElementById('upload-btn').disabled = true;
-    setProgress(0, '');
+    setProgress(0, '', '');
   }
 </script>
 </body>
