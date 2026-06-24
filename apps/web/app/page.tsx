@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 import { RevealOnScroll } from './_components/reveal';
 import { TopNav } from '@/components/top-nav';
+import { SubscriberHome } from './_components/subscriber-home';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,13 +26,41 @@ export default async function HomePage() {
   const session = await auth();
   const logged = Boolean(session?.user);
 
-  const activeSub = session?.user?.id
-    ? await prisma.subscription.findFirst({
-        where: { userId: session.user.id, status: 'ACTIVE' },
-        select: { plan: { select: { name: true } } },
-      })
-    : null;
+  // ── Suscriptor: mostrar dashboard personalizado ──────────────────────────
+  if (session?.user?.id) {
+    const activeSub = await prisma.subscription.findFirst({
+      where: { userId: session.user.id, status: 'ACTIVE' },
+      select: { expiresAt: true, plan: { select: { name: true } } },
+    });
 
+    if (activeSub) {
+      const recentDownloads = await prisma.download.findMany({
+        where: { userId: session.user.id },
+        orderBy: { createdAt: 'desc' },
+        take: 8,
+        select: {
+          id: true,
+          createdAt: true,
+          file: { select: { title: true, brand: true, category: true } },
+        },
+      });
+
+      return (
+        <>
+          <TopNav />
+          <SubscriberHome
+            userId={session.user.id}
+            name={session.user.name ?? session.user.email ?? 'Técnico'}
+            planName={activeSub.plan.name}
+            expiresAt={activeSub.expiresAt}
+            recentDownloads={recentDownloads}
+          />
+        </>
+      );
+    }
+  }
+
+  // ── Visitante / sin plan: landing page ──────────────────────────────────
   const [userCount, fileCount, downloadCount, subCount] = await Promise.all([
     prisma.user.count(),
     prisma.fileItem.count(),
@@ -40,10 +69,10 @@ export default async function HomePage() {
   ]);
 
   const STATS = [
-    { n: userCount.toLocaleString('es'), l: 'Usuarios registrados', c: '#f97316' },
-    { n: fileCount.toLocaleString('es'), l: 'Archivos disponibles', c: '#fb923c' },
-    { n: downloadCount.toLocaleString('es'), l: 'Descargas realizadas', c: '#a855f7' },
-    { n: subCount.toLocaleString('es'), l: 'Suscripciones activas', c: '#f97316' },
+    { n: userCount.toLocaleString('es'), l: 'Usuarios registrados' },
+    { n: fileCount.toLocaleString('es'), l: 'Archivos disponibles' },
+    { n: downloadCount.toLocaleString('es'), l: 'Descargas realizadas' },
+    { n: subCount.toLocaleString('es'), l: 'Suscripciones activas' },
   ];
 
   return (
@@ -66,25 +95,12 @@ export default async function HomePage() {
             inteligencia artificial — todo en un solo lugar.
           </p>
           <div className="cta">
-            {activeSub ? (
-              <>
-                <Link className="btn btn-primary btn-lg" href="/archivos">Ir a mis archivos →</Link>
-                <Link className="btn btn-ghost btn-lg" href="/dashboard">Mi cuenta</Link>
-              </>
-            ) : (
-              <>
-                <Link className="btn btn-primary btn-lg" href="/planes">Suscríbete ahora →</Link>
-                <Link className="btn btn-ghost btn-lg" href={logged ? '/dashboard' : '/signin'}>
-                  {logged ? 'Ir a mi cuenta' : 'Ya tengo cuenta'}
-                </Link>
-              </>
-            )}
+            <Link className="btn btn-primary btn-lg" href="/planes">Suscríbete ahora →</Link>
+            <Link className="btn btn-ghost btn-lg" href={logged ? '/dashboard' : '/signin'}>
+              {logged ? 'Ir a mi cuenta' : 'Ya tengo cuenta'}
+            </Link>
           </div>
-          {activeSub ? (
-            <p className="trust">✓ Plan <strong>{activeSub.plan.name}</strong> activo · ✓ Acceso completo habilitado</p>
-          ) : (
-            <p className="trust">✓ Sin permanencia · ✓ Acceso inmediato · ✓ Comunidad privada en Telegram</p>
-          )}
+          <p className="trust">✓ Sin permanencia · ✓ Acceso inmediato · ✓ Comunidad privada en Telegram</p>
         </div>
 
         <div className="heroframe reveal">
@@ -117,66 +133,41 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {activeSub ? (
-        <section id="planes" className="wrap">
-          <div className="reveal" style={{ maxWidth: 560, margin: '0 auto', textAlign: 'center' }}>
-            <div style={{
-              border: '1px solid #f97316',
-              borderRadius: 16,
-              padding: '40px 32px',
-              background: 'rgba(249,115,22,0.06)',
-            }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
-              <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 8 }}>
-                Tu plan <span className="grad">{activeSub.plan.name}</span> está activo
-              </h2>
-              <p style={{ color: 'var(--lp-muted)', marginBottom: 28 }}>
-                Tienes acceso completo a la biblioteca de archivos, firmware, herramientas y más.
-              </p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <Link className="btn btn-primary" href="/archivos">Ir a archivos →</Link>
-                <Link className="btn btn-ghost" href="/dashboard">Mi cuenta</Link>
-              </div>
-            </div>
+      <section id="planes" className="wrap">
+        <div className="stitle reveal">
+          <span className="tag">Planes</span>
+          <h2>Elige tu acceso</h2>
+          <p>Cancela cuando quieras. Todos los planes incluyen la comunidad de Telegram.</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 20, maxWidth: 760, margin: '0 auto', alignItems: 'start' }}>
+          <div className="plan reveal">
+            <div className="pn">Biblioteca</div>
+            <div className="price">$25<span>/año</span></div>
+            <p className="pdesc">Acceso a toda la nube de archivos.</p>
+            <ul>
+              <li><span className="ck">✓</span> Acceso completo a la biblioteca de archivos</li>
+              <li><span className="ck">✓</span> Firmware, drivers, herramientas y tutoriales</li>
+              <li><span className="ck">✓</span> Descargas ilimitadas</li>
+              <li><span className="ck">✓</span> Buscador avanzado por marca y modelo</li>
+            </ul>
+            <Link className="btn btn-ghost" href="/planes">Empezar</Link>
           </div>
-        </section>
-      ) : (
-        <section id="planes" className="wrap">
-          <div className="stitle reveal">
-            <span className="tag">Planes</span>
-            <h2>Elige tu acceso</h2>
-            <p>Cancela cuando quieras. Todos los planes incluyen la comunidad de Telegram.</p>
+          <div className="plan pop reveal">
+            <span className="badge">Más popular</span>
+            <div className="pn">Pro</div>
+            <div className="price">$50<span>/año</span></div>
+            <p className="pdesc">Todo, con soporte humano y comunidad.</p>
+            <ul>
+              <li><span className="ck">✓</span> Todo lo del plan Biblioteca</li>
+              <li><span className="ck">✓</span> Comunidad privada en Telegram</li>
+              <li><span className="ck">✓</span> Soporte directo con el instructor (1 a 1)</li>
+              <li><span className="ck">✓</span> Academia: cursos, evaluaciones y certificados</li>
+              <li><span className="ck">✓</span> Soporte prioritario</li>
+            </ul>
+            <Link className="btn btn-primary" href="/planes">Suscribirme</Link>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 20, maxWidth: 760, margin: '0 auto', alignItems: 'start' }}>
-            <div className="plan reveal">
-              <div className="pn">Biblioteca</div>
-              <div className="price">$25<span>/año</span></div>
-              <p className="pdesc">Acceso a toda la nube de archivos.</p>
-              <ul>
-                <li><span className="ck">✓</span> Acceso completo a la biblioteca de archivos</li>
-                <li><span className="ck">✓</span> Firmware, drivers, herramientas y tutoriales</li>
-                <li><span className="ck">✓</span> Descargas ilimitadas</li>
-                <li><span className="ck">✓</span> Buscador avanzado por marca y modelo</li>
-              </ul>
-              <Link className="btn btn-ghost" href="/planes">Empezar</Link>
-            </div>
-            <div className="plan pop reveal">
-              <span className="badge">Más popular</span>
-              <div className="pn">Pro</div>
-              <div className="price">$50<span>/año</span></div>
-              <p className="pdesc">Todo, con soporte humano y comunidad.</p>
-              <ul>
-                <li><span className="ck">✓</span> Todo lo del plan Biblioteca</li>
-                <li><span className="ck">✓</span> Comunidad privada en Telegram</li>
-                <li><span className="ck">✓</span> Soporte directo con el instructor (1 a 1)</li>
-                <li><span className="ck">✓</span> Academia: cursos, evaluaciones y certificados</li>
-                <li><span className="ck">✓</span> Soporte prioritario</li>
-              </ul>
-              <Link className="btn btn-primary" href="/planes">Suscribirme</Link>
-            </div>
-          </div>
-        </section>
-      )}
+        </div>
+      </section>
 
       <section id="opiniones" className="wrap">
         <div className="stitle reveal">
@@ -200,17 +191,15 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {!activeSub && (
-        <section className="wrap">
-          <div className="finalcta reveal">
-            <h2>Lleva tu taller al siguiente nivel</h2>
-            <p>Únete a miles de técnicos que ya tienen sus archivos, cursos y soporte en un solo lugar.</p>
-            <Link className="btn btn-primary btn-lg" href={logged ? '/planes' : '/planes'}>
-              {logged ? 'Ver planes →' : 'Crear mi cuenta →'}
-            </Link>
-          </div>
-        </section>
-      )}
+      <section className="wrap">
+        <div className="finalcta reveal">
+          <h2>Lleva tu taller al siguiente nivel</h2>
+          <p>Únete a miles de técnicos que ya tienen sus archivos, cursos y soporte en un solo lugar.</p>
+          <Link className="btn btn-primary btn-lg" href="/planes">
+            {logged ? 'Ver planes →' : 'Crear mi cuenta →'}
+          </Link>
+        </div>
+      </section>
 
       <footer>
         <div className="wrap">
