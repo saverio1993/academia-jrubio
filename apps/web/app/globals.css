@@ -33,6 +33,21 @@ body {
 
 * { box-sizing: border-box; }
 
+/* ── Ticker de archivos nuevos ─────────────────────────────────────────────── */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-33.333%); }
+}
+
+.ticker-track {
+  animation: ticker-scroll 55s linear infinite;
+  will-change: transform;
+}
+
+.ticker-wrap:hover .ticker-track {
+  animation-play-state: paused;
+}
+
 /* Utilidad: texto con gradiente de marca (usable en cualquier página) */
 .grad-text {
   background: linear-gradient(120deg, #f97316, #fb923c 45%, #a855f7);
