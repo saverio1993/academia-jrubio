@@ -36,3 +36,12 @@ coverage/
 # misc
 *.tsbuildinfo
 .cache/
+
+# binarios pesados / ejecutables (NUNCA al repo — GitHub rechaza >100MB)
+*.exe
+
+# scripts sueltos de depuración / setup (uso local)
+/setup-premium.js
+/packages/db/*.js
+.claude/settings.local.json
+_tmp_*

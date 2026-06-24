@@ -12,6 +12,7 @@ const LINKS = [
   { href: '/admin/archivos', label: 'Archivos' },
   { href: '/admin/cursos', label: 'Cursos' },
   { href: '/admin/ia', label: 'Asistente de IA' },
+  { href: '/admin/stats', label: 'Estadísticas' },
 ];
 
 export function Sidebar() {

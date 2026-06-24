@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         ...tokens.map((t) => ({ title: { contains: t, mode: 'insensitive' as const } })),
       ],
     },
-    take: 8,
+    take: 12,
     orderBy: { downloadsCount: 'desc' },
   });
 
@@ -38,6 +38,9 @@ export async function GET(req: NextRequest) {
     brand: f.brand,
     model: f.model,
     category: f.category,
+    storageKey: f.storageKey,
+    sizeBytes: f.sizeBytes != null ? Number(f.sizeBytes) : null,
+    isPremium: f.isPremium,
   }));
 
   let message: string;
