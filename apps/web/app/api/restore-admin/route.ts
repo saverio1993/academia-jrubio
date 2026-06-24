@@ -1,33 +1,30 @@
-// ENDPOINT DE EMERGENCIA — restaura rol ADMIN por email + contraseña de Nextcloud
+// ENDPOINT DE EMERGENCIA — restaura ADMIN al dueño de la cuenta
 // Eliminar este archivo una vez usado.
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(req: NextRequest) {
-  const { email, secret } = await req.json().catch(() => ({}));
+const OWNER_EMAIL = 'saveriomanrrique19@gmail.com';
 
-  // Verificar secreto (usa la contraseña de Nextcloud como clave de emergencia)
-  const expected = process.env.NEXTCLOUD_APP_PASSWORD;
-  if (!expected || secret !== expected) {
-    return NextResponse.json({ error: 'Secreto incorrecto' }, { status: 403 });
+export async function GET() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return NextResponse.json({ error: 'Debes estar logueado' }, { status: 401 });
+  }
+  if (session.user.email !== OWNER_EMAIL) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
   }
 
-  if (!email || typeof email !== 'string') {
-    return NextResponse.json({ error: 'Email requerido' }, { status: 400 });
-  }
-
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
-  if (!user) {
-    return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
-  }
+  const user = await prisma.user.findUnique({ where: { email: OWNER_EMAIL } });
+  if (!user) return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 });
 
   await prisma.user.update({
     where: { id: user.id },
-    data: { role: 'ADMIN', name: user.name?.toLowerCase() === 'duberney' ? null : user.name },
+    data: { role: 'ADMIN', name: 'Saverio' },
   });
 
-  return NextResponse.json({ ok: true, message: `${email} restaurado a ADMIN`, prevRole: user.role });
+  return NextResponse.json({ ok: true, message: 'Tu cuenta fue restaurada a ADMIN. Cierra sesión y vuelve a entrar.' });
 }
