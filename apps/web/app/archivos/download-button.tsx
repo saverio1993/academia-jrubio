@@ -7,6 +7,7 @@ export function DownloadButton({
   fileId,
   blocked,
   asMenuItem,
+  fullWidth,
   label,
 }: {
   fileId: string;
@@ -14,23 +15,25 @@ export function DownloadButton({
   blocked: boolean;
   userId: string;
   asMenuItem?: boolean;
+  fullWidth?: boolean;
   label?: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState<string | null>(null);
 
   async function handleDownload() {
-    if (blocked) {
-      window.location.href = '/planes';
-      return;
-    }
+    if (blocked) { window.location.href = '/planes'; return; }
     setLoading(true);
+    setError(null);
     try {
       const { url } = await getDownloadUrl(fileId);
-      window.location.href = url;
+      window.open(url, '_blank');
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error';
-      if (msg === 'NOT_AUTHENTICATED') window.location.href = '/signin?callbackUrl=/archivos';
-      else if (msg === 'NO_SUBSCRIPTION') window.location.href = '/planes';
+      if (msg === 'NOT_AUTHENTICATED') { window.location.href = '/signin?callbackUrl=/archivos'; return; }
+      if (msg === 'NO_SUBSCRIPTION')   { window.location.href = '/planes'; return; }
+      setError(msg);
+    } finally {
       setLoading(false);
     }
   }
@@ -42,7 +45,7 @@ export function DownloadButton({
         disabled={loading}
         className="w-full text-left px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-50"
       >
-        {label ?? '⬇ Descargar archivo'}
+        {loading ? '⟳ Preparando…' : (label ?? '⬇ Descargar archivo')}
       </button>
     );
   }
@@ -51,20 +54,33 @@ export function DownloadButton({
     return (
       <a
         href="/planes"
-        className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 whitespace-nowrap"
+        className={`rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 ${
+          fullWidth ? 'flex items-center justify-center w-full py-2 px-3' : 'px-3 py-1.5 whitespace-nowrap'
+        }`}
       >
-        PRO
+        {label ?? 'PRO'}
       </a>
     );
   }
 
   return (
-    <button
-      onClick={handleDownload}
-      disabled={loading}
-      className="rounded-lg bg-[var(--color-accent)] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 whitespace-nowrap"
-    >
-      {loading ? '⟳' : '⬇'}
-    </button>
+    <div className={fullWidth ? 'w-full' : 'inline-block'}>
+      <button
+        onClick={handleDownload}
+        disabled={loading}
+        className={`rounded-lg bg-[var(--color-accent)] font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 ${
+          fullWidth
+            ? 'w-full flex items-center justify-center gap-2 py-2 px-3 text-sm'
+            : 'px-3 py-1.5 text-xs whitespace-nowrap'
+        }`}
+      >
+        {loading ? '⟳ Preparando…' : (fullWidth ? (label ?? '⬇ Descargar') : '⬇')}
+      </button>
+      {error && (
+        <p className="mt-1 text-[10px] text-red-400 leading-tight">
+          ⚠ {error}
+        </p>
+      )}
+    </div>
   );
 }

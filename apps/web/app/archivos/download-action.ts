@@ -21,20 +21,17 @@ async function createNextcloudShare(storageKey: string): Promise<NextcloudShareR
   // Calcula la fecha de expiración (mínimo 1 día en el futuro, Nextcloud lo requiere)
   const expiresAt = new Date();
   expiresAt.setUTCDate(expiresAt.getUTCDate() + 1);
-  const expireDateStr = expiresAt.toISOString().split('T')[0];
+  const expireDateStr = expiresAt.toISOString().split('T')[0] ?? '';
 
-  // Todos los archivos están bajo /AcademiaJRubio/ en Nextcloud.
-  // Si el storageKey ya empieza con /AcademiaJRubio/, lo dejamos tal cual.
-  // Si no, lo prefijamos.
+  // Construir el path absoluto en Nextcloud
+  // Los archivos sincronizados tienen storageKey relativo a NEXTCLOUD_BASE_PATH
+  // Los legacy pueden tener paths absolutos empezando con '/'
   let fullPath: string;
-  if (storageKey.startsWith('/AcademiaJRubio/')) {
-    fullPath = storageKey;
-  } else if (storageKey.startsWith('/')) {
-    // Ya es absoluta pero no está en AcademiaJRubio — la dejamos tal cual
+  if (storageKey.startsWith('/')) {
     fullPath = storageKey;
   } else {
-    // Path relativo — prefijo con /AcademiaJRubio/
-    fullPath = '/AcademiaJRubio/' + storageKey;
+    const ncBase = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
+    fullPath = ncBase + '/' + storageKey;
   }
 
   // Llama a la OCS API de Nextcloud
@@ -111,8 +108,12 @@ export async function getDownloadUrl(
   const file = await prisma.fileItem.findUnique({ where: { id: fileId } });
   if (!file) throw new Error('Archivo no encontrado');
 
-  // Verificar suscripción para archivos premium
-  if (file.isPremium) {
+  // Admins y moderadores tienen acceso completo
+  const role = (session.user as { role?: string }).role;
+  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+  // Verificar suscripción para archivos premium (solo usuarios normales)
+  if (file.isPremium && !isAdmin) {
     const hasSub = await hasActiveSubscription(session.user.id);
     if (!hasSub) throw new Error('NO_SUBSCRIPTION');
   }

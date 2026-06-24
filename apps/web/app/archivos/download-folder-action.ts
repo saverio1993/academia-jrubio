@@ -21,7 +21,7 @@ async function createNextcloudFolderShare(folderPath: string): Promise<Nextcloud
 
   const expiresAt = new Date();
   expiresAt.setUTCDate(expiresAt.getUTCDate() + 1);
-  const expireDateStr = expiresAt.toISOString().split('T')[0];
+  const expireDateStr = expiresAt.toISOString().split('T')[0] ?? '';
 
   const ocsUrl = `${baseUrl.replace(/\/$/, '')}/ocs/v2.php/apps/files_sharing/api/v1/shares`;
   const credentials = `${username}:${appPassword}`;
@@ -84,14 +84,22 @@ export async function downloadFolderZip(
     throw new Error('NOT_AUTHENTICATED');
   }
 
-  // Verificar suscripción (descarga de carpetas es premium)
-  const hasSub = await hasActiveSubscription(session.user.id);
-  if (!hasSub && session.user.role !== 'ADMIN' && session.user.role !== 'MODERATOR') {
-    throw new Error('NO_SUBSCRIPTION');
+  // Admins y moderadores tienen acceso completo
+  const role = (session.user as { role?: string }).role;
+  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+  // Verificar suscripción (descarga de carpetas es premium, solo usuarios normales)
+  if (!isAdmin) {
+    const hasSub = await hasActiveSubscription(session.user.id);
+    if (!hasSub) throw new Error('NO_SUBSCRIPTION');
   }
 
+  // Construir path absoluto en Nextcloud si es relativo
+  const ncBase = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/\/+$/, '');
+  const absoluteFolder = folderPath.startsWith('/') ? folderPath : `${ncBase}/${folderPath}`;
+
   // Crear share de la carpeta
-  const share = await createNextcloudFolderShare(folderPath);
+  const share = await createNextcloudFolderShare(absoluteFolder);
 
   // URL de descarga: /s/{token}/download?path=/ → ZIP
   // Nextcloud detecta que es carpeta y la comprime
