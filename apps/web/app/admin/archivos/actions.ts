@@ -4,6 +4,154 @@ import { prisma } from '@academia/db';
 import { revalidatePath } from 'next/cache';
 import { assertAdmin, logAudit } from '@/lib/admin';
 
+// ── Sincronizar desde Nextcloud ──────────────────────────────────────────────
+
+const NC_URL  = process.env.NEXTCLOUD_URL  ?? 'https://cloud.heyvalue.com';
+const NC_USER = process.env.NEXTCLOUD_USER ?? '';
+const NC_PASS = process.env.NEXTCLOUD_APP_PASSWORD ?? '';
+const NC_BASE = (process.env.NEXTCLOUD_BASE_PATH ?? '/AcademiaJRubio/files').replace(/^\//, '');
+
+// Extensiones que vale la pena registrar como archivo descargable
+const GOOD_EXT = new Set([
+  'zip','rar','7z','tar','gz','bz2','xz',
+  '001','002','003','004','005','006','007','008','009',
+  'apk','exe','bat','msi','img','bin','kdz','ops','fls',
+]);
+// Extensiones a ignorar siempre
+const SKIP_EXT = new Set(['ping','xml','txt','md','DS_Store']);
+
+// Nombres de archivos que son particiones de dump (ej: Lun_0_P01_ssd.bin)
+function isPartitionDump(filename: string): boolean {
+  return /^Lun_\d+_P\d+_/i.test(filename);
+}
+
+function ext(filename: string): string {
+  const parts = filename.split('.');
+  return parts.length > 1 ? (parts[parts.length - 1] ?? '').toLowerCase() : '';
+}
+
+// Inferir categoría desde el path
+function inferCategory(pathParts: string[]): string {
+  const joined = pathParts.join('/').toLowerCase();
+  if (pathParts[0]?.toLowerCase() === 'drivers') return 'drivers';
+  if (pathParts[0]?.toLowerCase() === 'tutoriales') return 'tutoriales';
+  if (joined.includes('frp'))    return 'frp';
+  if (joined.includes('root'))   return 'root';
+  return 'firmware';
+}
+
+// Limpiar nombre de modelo (quitar keywords de categoría)
+function cleanModel(raw: string): string {
+  return raw
+    .replace(/\b(DUMP|FRP|ENG|ENGE|ENGR|ROM|FIRMWARE|SCATTER|MISC|VERSIONES?|VIEJAS?)\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+export interface SyncResult {
+  added: number;
+  skipped: number;
+  alreadyExist: number;
+  errors: string[];
+}
+
+export async function syncFromNextcloud(): Promise<SyncResult> {
+  await assertAdmin();
+
+  const authHeader = 'Basic ' + Buffer.from(`${NC_USER}:${NC_PASS}`).toString('base64');
+  const davBase    = `${NC_URL}/remote.php/dav/files/${NC_USER}/${NC_BASE}`;
+
+  // 1. PROPFIND recursivo para obtener todos los archivos
+  const res = await fetch(`${davBase}/`, {
+    method: 'PROPFIND',
+    headers: { Authorization: authHeader, Depth: 'infinity', 'Content-Type': 'application/xml' },
+    body: `<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getcontentlength/><d:getcontenttype/><d:resourcetype/></d:prop></d:propfind>`,
+  });
+
+  if (!res.ok) throw new Error(`Nextcloud PROPFIND falló: ${res.status}`);
+  const xml = await res.text();
+
+  // 2. Parsear XML manualmente (sin librería)
+  const hrefPattern  = /<d:href>([^<]+)<\/d:href>/g;
+  const isCollection = /<d:resourcetype>\s*<d:collection\s*\/>/g;
+  const sizePattern  = /<d:getcontentlength>(\d+)<\/d:getcontentlength>/g;
+
+  // Extraer bloques <d:response>
+  const responseBlocks = xml.split('<d:response>').slice(1);
+
+  const files: { path: string; size: bigint }[] = [];
+
+  for (const block of responseBlocks) {
+    // ¿Es carpeta?
+    if (/<d:collection/.test(block)) continue;
+
+    const hrefMatch = /<d:href>([^<]+)<\/d:href>/.exec(block);
+    const sizeMatch = /<d:getcontentlength>(\d+)<\/d:getcontentlength>/.exec(block);
+    if (!hrefMatch) continue;
+
+    const href    = decodeURIComponent(hrefMatch[1] ?? '');
+    const davPath = `/remote.php/dav/files/${NC_USER}/${NC_BASE}/`;
+    if (!href.startsWith(davPath)) continue;
+
+    const relative = href.slice(davPath.length);
+    if (!relative) continue;
+
+    files.push({
+      path: relative,
+      size: BigInt(sizeMatch?.[1] ?? '0'),
+    });
+  }
+
+  // 3. Obtener storageKeys ya existentes en BD
+  const existing = await prisma.fileItem.findMany({ select: { storageKey: true } });
+  const existingKeys = new Set(existing.map((f) => f.storageKey));
+
+  const result: SyncResult = { added: 0, skipped: 0, alreadyExist: 0, errors: [] };
+
+  for (const { path, size } of files) {
+    const parts    = path.split('/');
+    const filename = parts[parts.length - 1] ?? '';
+    const fileExt  = ext(filename);
+
+    // Filtros
+    if (!filename || filename.startsWith('.')) { result.skipped++; continue; }
+    if (SKIP_EXT.has(fileExt))               { result.skipped++; continue; }
+    if (isPartitionDump(filename))           { result.skipped++; continue; }
+    if (!GOOD_EXT.has(fileExt) && fileExt !== '') { result.skipped++; continue; }
+
+    // Ya existe en BD
+    if (existingKeys.has(path)) { result.alreadyExist++; continue; }
+
+    // Parsear metadatos del path
+    const brand    = parts[0] ?? 'General';
+    const rawModel = parts.length > 2 ? parts.slice(1, -1).join(' / ') : null;
+    const model    = rawModel ? cleanModel(rawModel) || null : null;
+    const category = inferCategory(parts as string[]);
+    const title    = filename.replace(/\.[^.]+$/, ''); // sin extensión
+
+    try {
+      await prisma.fileItem.create({
+        data: {
+          title,
+          brand,
+          model:    model || null,
+          category,
+          storageKey: path,
+          sizeBytes:  size > 0n ? size : null,
+          isPremium:  true,
+        },
+      });
+      existingKeys.add(path);
+      result.added++;
+    } catch (e) {
+      result.errors.push(`${path}: ${(e as Error).message}`);
+    }
+  }
+
+  revalidatePath('/admin/archivos');
+  return result;
+}
+
 function parseTags(raw: string): string[] {
   return String(raw ?? '')
     .split(',')

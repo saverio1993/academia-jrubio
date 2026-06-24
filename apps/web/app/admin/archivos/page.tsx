@@ -4,6 +4,7 @@ import { PageHeader, Card, Badge, Empty, inputCls, btnDanger } from '../_compone
 import { updateFile, deleteFile } from './actions';
 import { GenerateLink } from './generate-link';
 import { CreateFileForm } from './create-file-form';
+import { SyncButton } from './sync-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +37,18 @@ export default async function ArchivosPage({
     <>
       <PageHeader title="Archivos" subtitle={`${files.length} archivo(s) en la biblioteca`} />
 
+      {/* Sincronizar archivos desde Nextcloud */}
+      <Card className="mb-4 p-5">
+        <h2 className="mb-1 font-semibold">Sincronizar desde Nextcloud</h2>
+        <p className="mb-3 text-xs text-[var(--color-muted)]">
+          Escanea todos los archivos en Nextcloud y registra en la BD los que aún no aparecen en la web.
+        </p>
+        <SyncButton />
+      </Card>
+
       {/* Crear archivo — cliente para subida XHR con barra de progreso */}
       <Card className="mb-6 p-5">
-        <h2 className="mb-4 font-semibold">Agregar archivo</h2>
+        <h2 className="mb-4 font-semibold">Agregar archivo nuevo</h2>
         <CreateFileForm />
       </Card>
 
