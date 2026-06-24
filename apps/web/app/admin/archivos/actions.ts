@@ -151,6 +151,7 @@ export async function syncFromNextcloud(): Promise<SyncResult> {
 
   revalidatePath('/admin/archivos');
   revalidatePath('/archivos');
+  revalidatePath('/api/ticker');
   return result;
 }
 
@@ -207,6 +208,7 @@ export async function createFile(formData: FormData) {
   });
   await logAudit(admin.id, 'file.created', `file:${created.id}`, { title, brand });
   revalidatePath('/admin/archivos');
+  revalidatePath('/api/ticker');
 }
 
 export async function updateFile(formData: FormData) {
