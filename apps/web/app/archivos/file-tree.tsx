@@ -102,8 +102,7 @@ function FolderNode({
   userId: string;
   onMenu: (m: ContextMenu) => void;
 }) {
-  // Marcas abiertas por defecto; subcarpetas cerradas
-  const [open, setOpen] = useState(depth === 0);
+  const [open, setOpen] = useState(false);
   const [showAll, setShowAll] = useState(false);
 
   const total = totalFiles(node);
