@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 import { TopNav } from '@/components/top-nav';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,15 @@ async function createCheckout(planSlug: string, email?: string | null, userId?: 
 export default async function PlanesPage() {
   const session = await auth();
   const logged = Boolean(session?.user);
+
+  if (session?.user?.id) {
+    const activeSub = await prisma.subscription.findFirst({
+      where: { userId: session.user.id, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (activeSub) redirect('/dashboard');
+  }
+
   const plans = (await prisma.plan.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: 'asc' },
