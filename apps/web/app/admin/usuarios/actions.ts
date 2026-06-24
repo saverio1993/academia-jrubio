@@ -55,6 +55,10 @@ export async function createUser(_prev: CreateResult | null, formData: FormData)
     let userId: string;
 
     if (existing) {
+      // Proteger: no permitir que un admin se quite a sí mismo el rol ADMIN por error
+      if (existing.id === admin.id && role !== 'ADMIN') {
+        return { ok: false, message: 'No puedes cambiar tu propio rol de ADMIN desde aquí.' };
+      }
       await prisma.user.update({
         where: { id: existing.id },
         data: { role, ...(name ? { name } : {}) },
