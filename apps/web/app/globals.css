@@ -13,17 +13,27 @@
   --radius: 0.5rem;
 }
 
-/* Sitio siempre en modo oscuro premium (no seguimos el modo claro del sistema) */
+/* ── Tema claro ── */
+html.light {
+  --color-bg:           #f4f4f5;
+  --color-fg:           #09090b;
+  --color-muted:        #71717a;
+  --color-accent:       #f97316;
+  --color-accent-hover: #ea580c;
+  --color-border:       #d4d4d8;
+  --color-card:         #ffffff;
+}
 
 html, body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  transition: background 0.2s, color 0.2s;
 }
 
-/* Profundidad sutil (resplandores) en TODAS las páginas internas */
-body {
+/* Resplandores — solo en oscuro */
+html:not(.light) body {
   background-image:
     radial-gradient(640px circle at 0% -5%, rgba(249,115,22,0.10), transparent 55%),
     radial-gradient(720px circle at 100% 8%, rgba(124,58,237,0.10), transparent 55%);

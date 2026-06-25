@@ -32,6 +32,26 @@ export default async function DashboardPage() {
 
   const activeSub = subscriptions.find((s) => s.status === 'ACTIVE');
 
+  // Aviso de vencimiento: notificar si expira en ≤7 días y no se ha notificado hoy
+  if (activeSub?.expiresAt) {
+    const daysLeft = Math.ceil((activeSub.expiresAt.getTime() - Date.now()) / 86400000);
+    if (daysLeft <= 7 && daysLeft >= 0) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      const alreadyNotified = await prisma.notification.findFirst({
+        where: { userId, title: { startsWith: '⚠ Tu suscripción vence' }, createdAt: { gte: today } },
+        select: { id: true },
+      });
+      if (!alreadyNotified) {
+        const msg = daysLeft === 0
+          ? '⚠ Tu suscripción vence hoy. Renueva para no perder el acceso.'
+          : `⚠ Tu suscripción vence en ${daysLeft} día${daysLeft !== 1 ? 's' : ''}.`;
+        await prisma.notification.create({
+          data: { userId, title: `⚠ Tu suscripción vence en ${daysLeft}d`, body: msg },
+        });
+      }
+    }
+  }
+
   return (
     <>
       <TopNav />

@@ -16,6 +16,7 @@ interface FileItem {
   storageKey: string;
   sizeBytes: bigint | null;
   isPremium: boolean;
+  downloadsCount: number;
   createdAt: Date;
 }
 
@@ -196,6 +197,7 @@ function FolderNode({
                 <div className="shrink-0 flex items-center gap-1.5">
                   <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">
                     {f.sizeBytes ? bytes(f.sizeBytes) : ''}
+                    {f.downloadsCount > 0 && ` · ↓${f.downloadsCount}`}
                   </span>
                   <FavoriteButton fileItemId={f.id} initialFav={favSet.has(f.id)} />
                   <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} label={blocked ? 'PRO' : 'Descargar'} />

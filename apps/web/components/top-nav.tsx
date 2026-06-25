@@ -4,6 +4,7 @@ import { prisma } from '@academia/db';
 import { UserMenu } from './user-menu';
 import { MobileMenu } from './mobile-menu';
 import { NotificationBell } from './notification-bell';
+import { ThemeToggle } from './theme-toggle';
 
 export async function TopNav() {
   const session = await auth();
@@ -77,6 +78,7 @@ export async function TopNav() {
                 <span>⭐</span>
                 <span>Suscripción</span>
               </Link>
+              <ThemeToggle />
               <NotificationBell />
               <UserMenu
                 name={user?.name ?? null}
