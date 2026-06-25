@@ -15,24 +15,39 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'Escribe una consulta.', results: [] });
   }
 
-  // Búsqueda básica en la BD (se reemplaza por RAG con IA después)
   const tokens = q.split(/\s+/).filter(Boolean);
+  // Detectar si parece número de parte (ej: ELI-NX9, SM-A556B, DNY-NX9)
+  const isPartNum = /^[A-Z0-9]{2,}[-_][A-Z0-9]{2,}/i.test(q.trim());
 
-  const files = await prisma.fileItem.findMany({
-    where: {
-      OR: [
-        { title: { contains: q, mode: 'insensitive' } },
-        { brand: { contains: q, mode: 'insensitive' } },
-        { model: { contains: q, mode: 'insensitive' } },
-        { category: { contains: q, mode: 'insensitive' } },
-        ...tokens.map((t) => ({ title: { contains: t, mode: 'insensitive' as const } })),
-      ],
-    },
-    take: 12,
-    orderBy: { downloadsCount: 'desc' },
-  });
+  const [exactModel, general] = await Promise.all([
+    // Coincidencia exacta de modelo (solo si parece número de parte)
+    isPartNum ? prisma.fileItem.findMany({
+      where: { model: { equals: q.trim(), mode: 'insensitive' } },
+      take: 6,
+      orderBy: { downloadsCount: 'desc' },
+    }) : Promise.resolve([]),
 
-  const results = files.map((f) => ({
+    prisma.fileItem.findMany({
+      where: {
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { brand: { contains: q, mode: 'insensitive' } },
+          { model: { contains: q, mode: 'insensitive' } },
+          { subcategory: { contains: q, mode: 'insensitive' } },
+          ...tokens.map((t) => ({ title: { contains: t, mode: 'insensitive' as const } })),
+          ...tokens.map((t) => ({ model: { contains: t, mode: 'insensitive' as const } })),
+        ],
+      },
+      take: 16,
+      orderBy: { downloadsCount: 'desc' },
+    }),
+  ]);
+
+  // Exact matches primero, sin duplicados
+  const exactIds = new Set(exactModel.map(f => f.id));
+  const merged   = [...exactModel, ...general.filter(f => !exactIds.has(f.id))].slice(0, 14);
+
+  const results = merged.map((f) => ({
     id: f.id,
     title: f.title,
     brand: f.brand,
@@ -41,6 +56,7 @@ export async function GET(req: NextRequest) {
     storageKey: f.storageKey,
     sizeBytes: f.sizeBytes != null ? Number(f.sizeBytes) : null,
     isPremium: f.isPremium,
+    exactMatch: exactIds.has(f.id),
   }));
 
   let message: string;

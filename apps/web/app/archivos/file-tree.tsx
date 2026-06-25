@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { DownloadButton } from './download-button';
 import { DownloadFolderButton } from './download-folder-button';
 import { FavoriteButton } from './favorite-button';
+import { ReportButton } from './report-button';
 import { bytes } from '@/lib/format';
 
 interface FileItem {
@@ -200,6 +201,7 @@ function FolderNode({
                     {f.downloadsCount > 0 && ` · ↓${f.downloadsCount}`}
                   </span>
                   <FavoriteButton fileItemId={f.id} initialFav={favSet.has(f.id)} />
+                  <ReportButton fileItemId={f.id} fileTitle={f.title} />
                   <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} label={blocked ? 'PRO' : 'Descargar'} />
                 </div>
               </div>

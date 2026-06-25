@@ -47,6 +47,7 @@ model User {
   sessions       Session[]
   favorites      Favorite[]
   notifications  Notification[]
+  fileReports    FileReport[]
 
   enrollments    Enrollment[]
   lessonProgress LessonProgress[]
@@ -231,12 +232,33 @@ model FileItem {
   oneTimeLinks  OneTimeLink[]
   favorites     Favorite[]
   notifications Notification[]
+  fileReports   FileReport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brand, category])
   @@index([tags])
+}
+
+// ---------- REPORTES DE ARCHIVOS ----------
+
+model FileReport {
+  id         String    @id @default(cuid())
+  userId     String
+  fileItemId String
+  reason     String    // "danado", "no_compatible", "enlace_roto", "version_incorrecta", "otro"
+  comment    String?
+  status     String    @default("pending") // "pending", "resolved", "dismissed"
+  resolvedAt DateTime?
+  resolvedBy String?
+  createdAt  DateTime  @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileItem FileItem @relation(fields: [fileItemId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([fileItemId])
 }
 
 // ---------- FAVORITOS ----------

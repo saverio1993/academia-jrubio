@@ -12,6 +12,7 @@ interface FileHit {
   storageKey: string;
   sizeBytes: number | null;
   isPremium: boolean;
+  exactMatch?: boolean;
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -112,7 +113,7 @@ export function SmartSearch({ userId, hasSub }: { userId: string; hasSub: boolea
           onChange={handleChange}
           onFocus={() => { setFocused(true); if (results.length) setOpen(true); }}
           onBlur={() => setFocused(false)}
-          placeholder="Busca rápido: Samsung A55, HONOR 90, FRP Motorola…"
+          placeholder="Modelo, firmware, FRP, número de parte (ej: ELI-NX9, SM-A556B)…"
           className="flex-1 bg-transparent text-sm font-medium placeholder-[var(--color-muted)] focus:outline-none"
         />
         {query && (
@@ -170,7 +171,10 @@ export function SmartSearch({ userId, hasSub }: { userId: string; hasSub: boolea
                       {/* Info */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-medium text-[var(--color-fg)] truncate max-w-[220px]">{f.title}</span>
+                          <span className="text-sm font-medium text-[var(--color-fg)] truncate max-w-[200px]">{f.title}</span>
+                          {f.exactMatch && (
+                            <span className="shrink-0 rounded-full bg-green-500/20 px-1.5 py-0.5 text-[9px] font-bold text-green-400 uppercase tracking-wide">🎯 Exacto</span>
+                          )}
                           {f.isPremium && (
                             <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[9px] font-bold text-[var(--color-accent)] uppercase tracking-wide">PRO</span>
                           )}
