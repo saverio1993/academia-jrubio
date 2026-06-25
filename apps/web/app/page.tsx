@@ -64,10 +64,21 @@ export default async function HomePage() {
             name={session.user.name ?? session.user.email ?? 'Técnico'}
             image={userImage}
             planName={activeSub.plan.name}
-            expiresAt={activeSub.expiresAt}
-            recentDownloads={recentDownloads}
+            expiresAt={activeSub.expiresAt?.toISOString() ?? null}
+            recentDownloads={recentDownloads.map(d => ({
+              id: d.id,
+              createdAt: d.createdAt.toISOString(),
+              file: d.file,
+            }))}
             totalDownloads={totalDownloads}
-            newFiles={newFiles}
+            newFiles={newFiles.map(f => ({
+              id: f.id,
+              title: f.title,
+              brand: f.brand,
+              category: f.category,
+              sizeBytes: f.sizeBytes !== null ? Number(f.sizeBytes) : null,
+              createdAt: f.createdAt.toISOString(),
+            }))}
             fileCount={fileCount}
           />
         </>

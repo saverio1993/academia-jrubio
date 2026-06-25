@@ -1,9 +1,11 @@
+'use client';
+
 import Link from 'next/link';
 import { AIChat } from '@/app/archivos/ai-chat';
 
 interface RecentDownload {
   id: string;
-  createdAt: Date;
+  createdAt: string;
   file: { title: string; brand: string; category: string };
 }
 interface NewFile {
@@ -11,8 +13,8 @@ interface NewFile {
   title: string;
   brand: string;
   category: string;
-  sizeBytes: bigint | null;
-  createdAt: Date;
+  sizeBytes: number | null;
+  createdAt: string;
 }
 
 interface Props {
@@ -20,7 +22,7 @@ interface Props {
   name: string;
   image: string | null;
   planName: string;
-  expiresAt: Date | null;
+  expiresAt: string | null;
   recentDownloads: RecentDownload[];
   totalDownloads: number;
   newFiles: NewFile[];
@@ -37,12 +39,11 @@ const CAT_COLOR: Record<string, string> = {
   tutoriales: '#ec4899', herramientas: '#14b8a6',
 };
 
-function formatBytes(n: bigint | null): string {
+function formatBytes(n: number | null): string {
   if (!n) return '';
-  const v = Number(n);
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(0)} KB`;
-  if (v < 1024 ** 3) return `${(v / 1024 / 1024).toFixed(1)} MB`;
-  return `${(v / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
 function initials(name: string): string {
@@ -57,7 +58,7 @@ export function SubscriberHome({
   recentDownloads, totalDownloads, newFiles, fileCount,
 }: Props) {
   const daysLeft = expiresAt
-    ? Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000))
+    ? Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000))
     : null;
   const firstName = name.split(/[\s@]/)[0] ?? name;
   const expiring  = daysLeft !== null && daysLeft <= 7;
