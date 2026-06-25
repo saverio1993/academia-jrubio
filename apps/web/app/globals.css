@@ -96,6 +96,7 @@ body {
 .landing .eyebrow{display:inline-flex;align-items:center;gap:9px;padding:7px 16px;border-radius:999px;background:rgba(249,115,22,.1);border:1px solid rgba(249,115,22,.25);color:#fdba74;font-size:13px;font-weight:600;margin-bottom:28px}
 .landing .eyebrow .pulse{width:7px;height:7px;border-radius:50%;background:#f97316;animation:lp-pulse 2s infinite}
 @keyframes lp-pulse{0%{box-shadow:0 0 0 0 rgba(249,115,22,.6)}70%{box-shadow:0 0 0 9px rgba(249,115,22,0)}100%{box-shadow:0 0 0 0 rgba(249,115,22,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .landing h1{font-size:clamp(40px,6.4vw,74px);font-weight:900;letter-spacing:-.04em;line-height:1.04;margin-bottom:24px}
 .landing h1 .grad{background:linear-gradient(120deg,#f97316,#fb923c 40%,#a855f7);-webkit-background-clip:text;background-clip:text;color:transparent}
 .landing .sub{font-size:clamp(17px,2.2vw,21px);color:var(--lp-muted);max-width:680px;margin:0 auto 38px;line-height:1.6}
