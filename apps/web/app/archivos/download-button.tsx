@@ -57,8 +57,8 @@ export function DownloadButton({
     return (
       <a
         href="/planes"
-        className={`rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 ${
-          fullWidth ? 'flex items-center justify-center w-full py-2 px-3' : 'px-3 py-1.5 whitespace-nowrap'
+        className={`rounded border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/20 ${
+          fullWidth ? 'flex items-center justify-center w-full py-2 px-3 text-xs' : 'px-1.5 py-0.5 text-[10px] whitespace-nowrap'
         }`}
       >
         {label ?? 'PRO'}
@@ -71,13 +71,13 @@ export function DownloadButton({
       <button
         onClick={handleDownload}
         disabled={loading}
-        className={`rounded-lg bg-[var(--color-accent)] font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 ${
+        className={`rounded font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50 ${
           fullWidth
-            ? 'w-full flex items-center justify-center gap-2 py-2 px-3 text-sm'
-            : 'px-3 py-1.5 text-xs whitespace-nowrap'
+            ? 'w-full flex items-center justify-center gap-2 py-2 px-3 text-sm bg-[var(--color-accent)]'
+            : 'px-1.5 py-0.5 text-[10px] whitespace-nowrap bg-[var(--color-accent)]/80 hover:bg-[var(--color-accent)]'
         }`}
       >
-        {loading ? 'Preparando…' : (label ?? (fullWidth ? 'Descargar' : 'Descargar'))}
+        {loading ? '⟳' : '⬇'}
       </button>
       {error && (
         <p className="mt-1 text-[10px] text-red-400 leading-tight">
