@@ -158,7 +158,7 @@ export function AIChat({ userId, hasSub }: { userId: string; hasSub: boolean }) 
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[380px] max-h-[580px]">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[260px] sm:min-h-[380px] max-h-[380px] sm:max-h-[580px]">
         {messages.map((m) => (
           <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div

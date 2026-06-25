@@ -15,14 +15,55 @@
 
 /* ── Tema claro ── */
 html.light {
-  --color-bg:           #f4f4f5;
+  --color-bg:           #e8e8ec;
   --color-fg:           #09090b;
-  --color-muted:        #71717a;
-  --color-accent:       #f97316;
-  --color-accent-hover: #ea580c;
-  --color-border:       #d4d4d8;
+  --color-muted:        #4b5563;
+  --color-accent:       #ea580c;
+  --color-accent-hover: #c2410c;
+  --color-border:       #c4c4cc;
   --color-card:         #ffffff;
 }
+
+/* Gradiente de fondo sutil en modo claro */
+html.light body {
+  background-image:
+    radial-gradient(600px circle at 2% 0%,  rgba(249,115,22,0.07), transparent 55%),
+    radial-gradient(500px circle at 98% 100%, rgba(99,102,241,0.05), transparent 55%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+/* Elevación de tarjetas en modo claro */
+html.light .rounded-xl.border,
+html.light .rounded-2xl.border {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(0,0,0,0.04);
+}
+
+/* ─── Invertir overlays blancos → oscuros en modo claro ─── */
+/* bg-white/X → rgba negro equivalente */
+html.light .bg-white\/\[0\.02\]   { background-color: rgba(0,0,0,0.025) !important; }
+html.light .bg-white\/\[0\.03\]   { background-color: rgba(0,0,0,0.03)  !important; }
+html.light .bg-white\/\[0\.04\]   { background-color: rgba(0,0,0,0.04)  !important; }
+html.light .bg-white\/\[0\.06\]   { background-color: rgba(0,0,0,0.05)  !important; }
+html.light .bg-white\/\[0\.08\]   { background-color: rgba(0,0,0,0.06)  !important; }
+html.light .bg-white\/5            { background-color: rgba(0,0,0,0.04)  !important; }
+html.light .bg-white\/10           { background-color: rgba(0,0,0,0.07)  !important; }
+
+/* hover:bg-white/X → rgba negro en hover */
+html.light .hover\:bg-white\/\[0\.02\]:hover { background-color: rgba(0,0,0,0.03) !important; }
+html.light .hover\:bg-white\/\[0\.03\]:hover { background-color: rgba(0,0,0,0.04) !important; }
+html.light .hover\:bg-white\/\[0\.04\]:hover { background-color: rgba(0,0,0,0.05) !important; }
+html.light .hover\:bg-white\/\[0\.08\]:hover { background-color: rgba(0,0,0,0.06) !important; }
+html.light .hover\:bg-white\/5:hover          { background-color: rgba(0,0,0,0.05) !important; }
+html.light .hover\:bg-white\/10:hover         { background-color: rgba(0,0,0,0.07) !important; }
+
+/* Borders blancos (en mensajes de chat, etc.) → oscuros */
+html.light .border-white\/10  { border-color: rgba(0,0,0,0.10) !important; }
+html.light .border-white\/20  { border-color: rgba(0,0,0,0.12) !important; }
+html.light .divide-white\/10  > * + * { border-color: rgba(0,0,0,0.08) !important; }
+
+/* El chat IA tiene fondo oscuro fijo — restaurar dentro de él */
+html.light .ai-chat-dark { color-scheme: dark; }
 
 html, body {
   background: var(--color-bg);
@@ -58,11 +99,25 @@ html:not(.light) body {
   animation-play-state: paused;
 }
 
-/* ── Subscriber home grid ───────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .subscriber-grid {
-    grid-template-columns: 1fr !important;
+/* ── Mobile responsive fixes (app pages, ≤ 640 px) ────────────────────────── */
+@media (max-width: 640px) {
+  /* Subscriber home: main grid sidebar → apilado */
+  .subscriber-grid { grid-template-columns: 1fr !important; }
+
+  /* Subscriber home: hero inner padding más compacto */
+  .sub-hero-inner  { padding: 28px 16px 22px !important; }
+
+  /* Subscriber home: quick-access → 2 columnas */
+  .sub-quick-grid  {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
   }
+
+  /* Subscriber home: mini stats row más junta */
+  .sub-mini-stats  { gap: 10px !important; }
+
+  /* Subscriber home: plan badge ancho completo cuando se envuelve */
+  .sub-plan-badge  { width: 100% !important; text-align: center !important; }
 }
 
 /* Utilidad: texto con gradiente de marca (usable en cualquier página) */

@@ -27,7 +27,7 @@ export async function TopNav() {
           <img
             src="/logo-academia.png"
             alt="Academia J Rubio"
-            className="h-20 w-20 object-contain transition-transform group-hover:scale-105"
+            className="h-10 w-10 sm:h-16 sm:w-16 object-contain transition-transform group-hover:scale-105"
           />
           <span className="hidden sm:block font-bold text-base text-[var(--color-fg)] group-hover:text-[var(--color-accent)] transition-colors leading-tight">
             Academia<br />J Rubio

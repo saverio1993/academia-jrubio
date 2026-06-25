@@ -87,7 +87,7 @@ export function SubscriberHome({
           background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
         }} />
 
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '52px 24px 44px', position: 'relative' }}>
+        <div className="sub-hero-inner" style={{ maxWidth: 1200, margin: '0 auto', padding: '52px 24px 44px', position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
 
             {/* Greeting left */}
@@ -120,7 +120,7 @@ export function SubscriberHome({
                   {firstName}
                 </h1>
                 {/* Mini stat bar */}
-                <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+                <div className="sub-mini-stats" style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
                   {[
                     { v: String(totalDownloads), l: 'descargas' },
                     { v: String(fileCount), l: 'archivos disponibles' },
@@ -140,7 +140,7 @@ export function SubscriberHome({
             </div>
 
             {/* Plan badge */}
-            <div style={{
+            <div className="sub-plan-badge" style={{
               flexShrink: 0,
               borderRadius: 20,
               border: `1px solid ${expiring ? 'rgba(248,113,113,0.4)' : 'rgba(249,115,22,0.35)'}`,
@@ -179,7 +179,7 @@ export function SubscriberHome({
 
       {/* ── QUICK ACCESS ── */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 0' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
+        <div className="sub-quick-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
           {[
             {
               href: '/archivos', emoji: '📦', title: 'Biblioteca',

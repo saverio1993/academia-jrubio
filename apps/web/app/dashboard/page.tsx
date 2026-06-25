@@ -97,7 +97,7 @@ export default async function DashboardPage() {
               style={{ background: 'radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)' }}
             />
 
-            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 sm:p-8">
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-8">
               {/* Saludo + avatar */}
               <div className="flex items-center gap-5">
                 {user?.image ? (
@@ -124,7 +124,7 @@ export default async function DashboardPage() {
               {/* Badge del plan */}
               {activeSub ? (
                 <div
-                  className="shrink-0 rounded-2xl border px-6 py-4 text-center"
+                  className="w-full sm:w-auto sm:shrink-0 rounded-2xl border px-6 py-4 text-center"
                   style={{
                     borderColor: 'rgba(249,115,22,0.4)',
                     background:  'rgba(249,115,22,0.08)',
@@ -151,7 +151,7 @@ export default async function DashboardPage() {
           </div>
 
           {/* ── STATS ── */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {[
               {
                 label: 'Plan',
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
                 accent: true,
               },
               {
-                label: 'Descargas totales',
+                label: 'Descargas',
                 value: String(totalDownloads),
                 sub:   'archivos descargados',
                 accent: false,
@@ -176,11 +176,11 @@ export default async function DashboardPage() {
             ].map((s) => (
               <div
                 key={s.label}
-                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-4"
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-2.5 py-3 sm:px-4 sm:py-4"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">{s.label}</p>
-                <p className={`text-xl font-bold mt-1 ${s.accent ? 'text-[var(--color-accent)]' : ''}`}>{s.value}</p>
-                <p className="text-[11px] text-[var(--color-muted)] mt-0.5">{s.sub}</p>
+                <p className="text-[8px] sm:text-[10px] font-semibold uppercase tracking-tight sm:tracking-wider text-[var(--color-muted)] truncate">{s.label}</p>
+                <p className={`text-sm sm:text-xl font-bold mt-0.5 sm:mt-1 leading-tight ${s.accent ? 'text-[var(--color-accent)]' : ''}`}>{s.value}</p>
+                <p className="hidden sm:block text-[11px] text-[var(--color-muted)] mt-0.5">{s.sub}</p>
               </div>
             ))}
           </div>
