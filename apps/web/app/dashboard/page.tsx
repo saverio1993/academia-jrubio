@@ -286,8 +286,7 @@ export default async function DashboardPage() {
                             className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors"
                           >
                             <div
-                              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base"
-                              style={{ background: 'rgba(255,255,255,0.06)' }}
+                              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-base bg-white/5"
                             >
                               {icon}
                             </div>

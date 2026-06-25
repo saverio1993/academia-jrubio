@@ -39,7 +39,7 @@ export function ReportButton({ fileItemId, fileTitle }: { fileItemId: string; fi
       <button
         onClick={handleOpen}
         title="Reportar problema"
-        className="inline-flex items-center justify-center w-5 h-5 rounded transition-colors text-[rgba(255,255,255,0.2)] hover:text-orange-400"
+        className="inline-flex items-center justify-center w-5 h-5 rounded transition-colors opacity-30 hover:opacity-100 text-[var(--color-muted)] hover:text-orange-400"
       >
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/>
