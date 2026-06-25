@@ -34,16 +34,27 @@ export default async function HomePage() {
     });
 
     if (activeSub) {
-      const recentDownloads = await prisma.download.findMany({
-        where: { userId: session.user.id },
-        orderBy: { createdAt: 'desc' },
-        take: 8,
-        select: {
-          id: true,
-          createdAt: true,
-          file: { select: { title: true, brand: true, category: true } },
-        },
-      });
+      const [recentDownloads, totalDownloads, newFiles, fileCount, userImage] = await Promise.all([
+        prisma.download.findMany({
+          where: { userId: session.user.id },
+          orderBy: { createdAt: 'desc' },
+          take: 6,
+          select: {
+            id: true,
+            createdAt: true,
+            file: { select: { title: true, brand: true, category: true } },
+          },
+        }),
+        prisma.download.count({ where: { userId: session.user.id } }),
+        prisma.fileItem.findMany({
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+          select: { id: true, title: true, brand: true, category: true, sizeBytes: true, createdAt: true },
+        }),
+        prisma.fileItem.count(),
+        prisma.user.findUnique({ where: { id: session.user.id }, select: { image: true } })
+          .then(u => u?.image ?? null),
+      ]);
 
       return (
         <>
@@ -51,9 +62,13 @@ export default async function HomePage() {
           <SubscriberHome
             userId={session.user.id}
             name={session.user.name ?? session.user.email ?? 'Técnico'}
+            image={userImage}
             planName={activeSub.plan.name}
             expiresAt={activeSub.expiresAt}
             recentDownloads={recentDownloads}
+            totalDownloads={totalDownloads}
+            newFiles={newFiles}
+            fileCount={fileCount}
           />
         </>
       );
