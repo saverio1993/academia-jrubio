@@ -187,34 +187,30 @@ export function AIChat({ userId, hasSub }: { userId: string; hasSub: boolean }) 
                         key={f.id}
                         className="rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors overflow-hidden"
                       >
-                        {/* Cabecera del archivo */}
-                        <div className="flex items-center gap-2.5 px-3 pt-2.5 pb-1.5">
-                          <span className={`shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-base border ${clrCls}`}>
+                        {/* Fila única: icono + info + botón pequeño */}
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <span className={`shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-sm border ${clrCls}`}>
                             {icon}
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-semibold text-[var(--color-fg)] leading-tight">{f.title}</span>
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[11px] font-semibold text-[var(--color-fg)] leading-tight truncate">{f.title}</span>
                               {f.isPremium && (
-                                <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1.5 py-0.5 text-[8px] font-bold text-[var(--color-accent)] uppercase tracking-wide">PRO</span>
+                                <span className="shrink-0 rounded-full bg-[var(--color-accent)]/20 px-1 py-0.5 text-[8px] font-bold text-[var(--color-accent)] uppercase">PRO</span>
                               )}
                             </div>
-                            <p className="text-[10px] text-[var(--color-muted)] mt-0.5">
-                              {f.brand}{f.model ? ` · ${f.model}` : ''}{f.sizeBytes ? ` · ${bytes(f.sizeBytes)}` : ''}{' '}
-                              <span className="capitalize opacity-70">{f.category}</span>
+                            <p className="text-[9px] text-[var(--color-muted)] truncate">
+                              {f.brand}{f.model ? ` · ${f.model}` : ''}{f.sizeBytes ? ` · ${bytes(f.sizeBytes)}` : ''}
                             </p>
                           </div>
-                        </div>
-                        {/* Botón de descarga grande */}
-                        <div className="px-3 pb-2.5">
-                          <DownloadButton
-                            fileId={f.id}
-                            storageKey={f.storageKey}
-                            blocked={blocked}
-                            userId={userId}
-                            fullWidth
-                            label={blocked ? '🔒 Requiere suscripción PRO' : '⬇ Descargar archivo'}
-                          />
+                          <div className="shrink-0">
+                            <DownloadButton
+                              fileId={f.id}
+                              storageKey={f.storageKey}
+                              blocked={blocked}
+                              userId={userId}
+                            />
+                          </div>
                         </div>
                       </div>
                     );
