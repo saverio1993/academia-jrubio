@@ -42,7 +42,7 @@ async function createCheckout(
   params.set('mode', 'subscription');
   params.set('line_items[0][price]', plan.stripePriceId);
   params.set('line_items[0][quantity]', '1');
-  params.set('success_url', `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`);
+  params.set('success_url', `${appUrl}/api/checkout/finalize?session_id={CHECKOUT_SESSION_ID}`);
   params.set('cancel_url', `${appUrl}/planes`);
   params.set('allow_promotion_codes', 'true');
   params.set('metadata[planSlug]', planSlug);
