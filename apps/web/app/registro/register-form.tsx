@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState, useEffect } from 'react';
+import { useState, useTransition } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { registerUser } from './actions';
@@ -9,11 +9,11 @@ const inputCls = 'w-full rounded-lg border border-[var(--lp-border,rgba(255,255,
 
 function strength(pw: string): { score: number; label: string; color: string } {
   let s = 0;
-  if (pw.length >= 8)              s++;
-  if (pw.length >= 12)             s++;
-  if (/[A-Z]/.test(pw))           s++;
-  if (/[0-9]/.test(pw))           s++;
-  if (/[^A-Za-z0-9]/.test(pw))   s++;
+  if (pw.length >= 8)            s++;
+  if (pw.length >= 12)           s++;
+  if (/[A-Z]/.test(pw))         s++;
+  if (/[0-9]/.test(pw))         s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
   if (s <= 1) return { score: s, label: 'Muy débil',  color: '#ef4444' };
   if (s === 2) return { score: s, label: 'Débil',     color: '#f97316' };
   if (s === 3) return { score: s, label: 'Aceptable', color: '#eab308' };
@@ -23,51 +23,66 @@ function strength(pw: string): { score: number; label: string; color: string } {
 
 export function RegisterForm() {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
-  // Mantener email y password en estado para usarlos en signIn después
+  const [name,     setName]     = useState('');
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [signingIn, setSigningIn] = useState(false);
-  const [loginError, setLoginError] = useState('');
+  const [confirm,  setConfirm]  = useState('');
+  const [error,    setError]    = useState('');
+  const [status,   setStatus]   = useState('');
 
-  const [state, action, pending] = useActionState(registerUser, null);
-  const str = strength(password);
+  const str  = strength(password);
+  const busy = isPending;
 
-  // Cuando el servidor dice ok:true → iniciar sesión y redirigir
-  useEffect(() => {
-    if (state?.ok !== true) return;
-    setSigningIn(true);
-    setLoginError('');
-    signIn('credentials', { email, password, redirect: false })
-      .then(res => {
-        if (res?.error) {
-          setLoginError('Cuenta creada, pero falló el inicio automático. Ve a iniciar sesión.');
-          setSigningIn(false);
-        } else {
-          router.push('/planes');
-        }
-      })
-      .catch(() => {
-        setLoginError('Cuenta creada. Ve a iniciar sesión.');
-        setSigningIn(false);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError('');
+    setStatus('');
 
-  const busy = pending || signingIn;
+    startTransition(async () => {
+      // 1. Crear usuario en el servidor
+      const fd = new FormData();
+      fd.append('name',     name);
+      fd.append('email',    email);
+      fd.append('password', password);
+      fd.append('confirm',  confirm);
+
+      const result = await registerUser(null, fd);
+
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+
+      // 2. Iniciar sesión automáticamente
+      setStatus('Cuenta creada — iniciando sesión…');
+      const res = await signIn('credentials', { email, password, redirect: false });
+
+      if (res?.error) {
+        setError('Cuenta creada, pero no pudimos iniciar sesión automáticamente. Ve a iniciar sesión.');
+        return;
+      }
+
+      // 3. Redirigir a planes
+      router.push('/planes');
+    });
+  }
 
   return (
-    <form action={action} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-xs text-white/60 mb-1.5">Nombre completo</label>
-        <input name="name" type="text" required placeholder="Juan Pérez" className={inputCls} />
+        <input
+          type="text" required placeholder="Juan Pérez" className={inputCls}
+          value={name} onChange={e => setName(e.target.value)}
+        />
       </div>
 
       <div>
         <label className="block text-xs text-white/60 mb-1.5">Correo electrónico</label>
         <input
-          name="email" type="email" required placeholder="correo@ejemplo.com"
-          className={inputCls}
+          type="email" required placeholder="correo@ejemplo.com" className={inputCls}
           value={email} onChange={e => setEmail(e.target.value)}
         />
       </div>
@@ -75,8 +90,7 @@ export function RegisterForm() {
       <div>
         <label className="block text-xs text-white/60 mb-1.5">Contraseña</label>
         <input
-          name="password" type="password" required
-          placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número"
+          type="password" required placeholder="Mínimo 8 caracteres, 1 mayúscula, 1 número"
           className={inputCls}
           value={password} onChange={e => setPassword(e.target.value)}
         />
@@ -95,24 +109,21 @@ export function RegisterForm() {
 
       <div>
         <label className="block text-xs text-white/60 mb-1.5">Confirmar contraseña</label>
-        <input name="confirm" type="password" required placeholder="Repite la contraseña" className={inputCls} />
+        <input
+          type="password" required placeholder="Repite la contraseña" className={inputCls}
+          value={confirm} onChange={e => setConfirm(e.target.value)}
+        />
       </div>
 
-      {state?.ok === false && (
+      {error && (
         <div className="rounded-lg bg-red-500/10 border border-red-500/30 px-4 py-3 text-sm text-red-400">
-          ⚠ {state.error}
+          ⚠ {error}
         </div>
       )}
 
-      {loginError && (
-        <div className="rounded-lg bg-yellow-500/10 border border-yellow-500/30 px-4 py-3 text-sm text-yellow-400">
-          ⚠ {loginError}
-        </div>
-      )}
-
-      {signingIn && (
+      {status && !error && (
         <div className="rounded-lg bg-green-500/10 border border-green-500/30 px-4 py-3 text-sm text-green-400">
-          ✓ Cuenta creada — iniciando sesión…
+          ✓ {status}
         </div>
       )}
 
@@ -121,9 +132,7 @@ export function RegisterForm() {
         className="w-full rounded-lg py-3 text-sm font-bold text-white transition-colors disabled:opacity-60"
         style={{ background: 'linear-gradient(135deg,#f97316,#fb923c)' }}
       >
-        {pending   ? 'Creando cuenta…'   :
-         signingIn ? 'Iniciando sesión…' :
-         'Crear cuenta y elegir plan →'}
+        {busy ? (status || 'Procesando…') : 'Crear cuenta y elegir plan →'}
       </button>
 
       <p className="text-[11px] text-white/40 text-center">
