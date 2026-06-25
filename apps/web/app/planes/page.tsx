@@ -5,6 +5,7 @@ import { TopNav } from '@/components/top-nav';
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { verifyPendingReg } from '@/lib/pending-reg';
+import { CouponInput } from './coupon-input';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ async function createCheckout(
   email?: string | null,
   userId?: string,
   pendingToken?: string,
+  couponCode?: string,
 ) {
   'use server';
   const plan = await prisma.plan.findUnique({ where: { slug: planSlug }, select: { stripePriceId: true } });
@@ -44,11 +46,30 @@ async function createCheckout(
   params.set('line_items[0][quantity]', '1');
   params.set('success_url', `${appUrl}/api/checkout/finalize?session_id={CHECKOUT_SESSION_ID}`);
   params.set('cancel_url', `${appUrl}/planes`);
-  params.set('allow_promotion_codes', 'true');
   params.set('metadata[planSlug]', planSlug);
   if (email)        params.set('customer_email', email);
   if (userId)       params.set('client_reference_id', userId);
   if (pendingToken) params.set('metadata[pendingReg]', pendingToken);
+
+  // Apply coupon if provided (can't use allow_promotion_codes simultaneously)
+  if (couponCode) {
+    const coupon = await prisma.coupon.findFirst({
+      where: { code: couponCode, active: true },
+      select: { stripeCouponId: true, maxUses: true, uses: true, expiresAt: true },
+    });
+    const isValid = coupon?.stripeCouponId &&
+      (!coupon.expiresAt || coupon.expiresAt > new Date()) &&
+      (!coupon.maxUses || coupon.uses < coupon.maxUses);
+
+    if (isValid) {
+      params.set('discounts[0][coupon]', coupon!.stripeCouponId!);
+      params.set('metadata[couponCode]', couponCode);
+    } else {
+      params.set('allow_promotion_codes', 'true');
+    }
+  } else {
+    params.set('allow_promotion_codes', 'true');
+  }
 
   const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
@@ -62,8 +83,13 @@ async function createCheckout(
   redir(data.url);
 }
 
-export default async function PlanesPage() {
+export default async function PlanesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ coupon?: string }>;
+}) {
   const session = await auth();
+  const sp = await searchParams;
 
   // Usuario ya logueado con suscripción activa → no necesita plan
   if (session?.user?.id) {
@@ -88,6 +114,25 @@ export default async function PlanesPage() {
     where: { isActive: true, slug: { not: 'gratis' } },
     orderBy: { sortOrder: 'asc' },
   })) as unknown as Plan[];
+
+  // Validate coupon from URL param
+  const couponParam = sp?.coupon?.toUpperCase().trim();
+  let appliedCoupon: { code: string; type: string; value: number; stripeCouponId: string } | null = null;
+  let discountLabel = '';
+  if (couponParam) {
+    const coupon = await prisma.coupon.findFirst({
+      where: { code: couponParam, active: true },
+      select: { code: true, type: true, value: true, stripeCouponId: true, maxUses: true, uses: true, expiresAt: true },
+    });
+    if (coupon?.stripeCouponId &&
+        (!coupon.expiresAt || coupon.expiresAt > new Date()) &&
+        (!coupon.maxUses || coupon.uses < coupon.maxUses)) {
+      appliedCoupon = { ...coupon, stripeCouponId: coupon.stripeCouponId };
+      discountLabel = coupon.type === 'PERCENT'
+        ? `${coupon.value}% de descuento`
+        : `$${(coupon.value / 100).toFixed(2)} de descuento`;
+    }
+  }
 
   const loggedIn = Boolean(session?.user?.id);
 
@@ -126,6 +171,14 @@ export default async function PlanesPage() {
           <p>Acceso completo a la biblioteca y, según tu plan, comunidad privada de Telegram y soporte directo.</p>
         </div>
 
+        {/* Cupón */}
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <CouponInput
+            appliedCode={appliedCoupon?.code}
+            discountLabel={discountLabel}
+          />
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 20, alignItems: 'start' }}>
           {plans.map((plan) => {
             const pop      = plan.slug === 'pro';
@@ -147,6 +200,7 @@ export default async function PlanesPage() {
                     session?.user?.email,
                     session?.user?.id,
                     pendingToken,
+                    appliedCoupon?.code,
                   );
                 }}>
                   <button type="submit" className={`btn ${pop ? 'btn-primary' : 'btn-ghost'}`}>

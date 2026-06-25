@@ -512,6 +512,24 @@ model OneTimeLink {
   @@index([fileItemId])
 }
 
+// ---------- CUPONES DE DESCUENTO ----------
+
+model Coupon {
+  id             String    @id @default(cuid())
+  code           String    @unique
+  description    String?
+  type           String    // "PERCENT" | "FIXED"
+  value          Float     // % (0-100) for PERCENT, cents for FIXED
+  maxUses        Int?      // null = unlimited
+  uses           Int       @default(0)
+  active         Boolean   @default(true)
+  expiresAt      DateTime?
+  stripeCouponId String?
+  createdAt      DateTime  @default(now())
+
+  @@index([code, active])
+}
+
 // ---------- IA CONFIGURACIÓN (Fase 2) ----------
 
 model AIConfig {

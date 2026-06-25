@@ -14,6 +14,7 @@ const LINKS = [
   { href: '/admin/ia', label: 'Asistente de IA' },
   { href: '/admin/links',    label: 'Links únicos' },
   { href: '/admin/reportes', label: 'Reportes' },
+  { href: '/admin/cupones',  label: 'Cupones' },
   { href: '/admin/stats', label: 'Estadísticas' },
 ];
 

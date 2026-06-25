@@ -79,12 +79,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${base}/checkout/success?unpaid=1`);
   }
 
-  const planSlug = stripe.metadata?.planSlug ?? '';
+  const planSlug   = stripe.metadata?.planSlug ?? '';
+  const couponCode = stripe.metadata?.couponCode ?? null;
+
+  async function incrementCoupon() {
+    if (!couponCode) return;
+    await prisma.coupon.updateMany({
+      where: { code: couponCode },
+      data:  { uses: { increment: 1 } },
+    }).catch(() => {});
+  }
 
   // ── Caso 1: usuario existente (ya tenía sesión al comprar) ──
   const existingUserId = stripe.client_reference_id;
   if (existingUserId) {
     await createSubscription(existingUserId, planSlug);
+    await incrementCoupon();
     // Registrar pago (no crítico)
     if (stripe.amount_total) {
       await prisma.payment.create({
@@ -132,6 +142,7 @@ export async function GET(req: NextRequest) {
   }
 
   await createSubscription(user.id, planSlug);
+  await incrementCoupon();
 
   if (stripe.amount_total) {
     await prisma.payment.create({
