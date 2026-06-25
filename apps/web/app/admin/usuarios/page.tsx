@@ -74,6 +74,7 @@ export default async function UsuariosPage({
               <Th className="text-center">Pagos</Th>
               <Th>Registro</Th>
               <Th>Rol</Th>
+              <Th>Acciones</Th>
             </>
           }
         >

@@ -120,3 +120,27 @@ export async function updateUserName(formData: FormData): Promise<{ ok: boolean;
     return { ok: false, text: 'Error al guardar' };
   }
 }
+
+export async function deleteUser(formData: FormData): Promise<{ ok: boolean; text: string }> {
+  try {
+    const admin  = await assertAdmin();
+    const userId = String(formData.get('userId') ?? '').trim();
+    if (!userId) return { ok: false, text: 'Usuario inválido' };
+
+    if (userId === admin.id) return { ok: false, text: 'No puedes eliminarte a ti mismo.' };
+
+    const target = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, role: true } });
+    if (!target) return { ok: false, text: 'Usuario no encontrado.' };
+    if (target.role === 'ADMIN') {
+      const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } });
+      if (adminCount <= 1) return { ok: false, text: 'No puedes eliminar el único admin.' };
+    }
+
+    await prisma.user.delete({ where: { id: userId } });
+    await logAudit(admin.id, 'user.deleted', `user:${userId}`, { email: target.email });
+    revalidatePath('/admin/usuarios');
+    return { ok: true, text: 'Usuario eliminado.' };
+  } catch {
+    return { ok: false, text: 'Error al eliminar.' };
+  }
+}

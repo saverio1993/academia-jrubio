@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { changeRole, updateUserName } from './actions';
+import { changeRole, updateUserName, deleteUser } from './actions';
 
 type UserRole = 'USER' | 'MODERATOR' | 'ADMIN';
 
@@ -18,8 +18,11 @@ export function UserRow({ userId, currentRole, currentName, email }: Props) {
   const [editingName, setEditing] = useState(false);
   const [savingRole, setSavingRole] = useState(false);
   const [savingName, setSavingName] = useState(false);
-  const [roleMsg, setRoleMsg]     = useState<{ ok: boolean; text: string } | null>(null);
-  const [nameMsg, setNameMsg]     = useState<{ ok: boolean; text: string } | null>(null);
+  const [roleMsg, setRoleMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  const [nameMsg, setNameMsg]       = useState<{ ok: boolean; text: string } | null>(null);
+  const [deleting, setDeleting]     = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
+  const [delMsg, setDelMsg]         = useState<string | null>(null);
 
   async function handleRoleSave() {
     setSavingRole(true);
@@ -31,6 +34,20 @@ export function UserRow({ userId, currentRole, currentName, email }: Props) {
     setRoleMsg(result);
     setSavingRole(false);
     if (result.ok) setTimeout(() => setRoleMsg(null), 3000);
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDelMsg(null);
+    const fd = new FormData();
+    fd.append('userId', userId);
+    const result = await deleteUser(fd);
+    if (!result.ok) {
+      setDelMsg(result.text);
+      setDeleting(false);
+      setConfirmDel(false);
+    }
+    // Si ok=true la página se revalida sola y la fila desaparece
   }
 
   async function handleNameSave() {
@@ -113,6 +130,39 @@ export function UserRow({ userId, currentRole, currentName, email }: Props) {
           <p className={`text-[10px] mt-1 ${roleMsg.ok ? 'text-green-400' : 'text-red-400'}`}>
             {roleMsg.ok ? '✓ ' : '⚠ '}{roleMsg.text}
           </p>
+        )}
+      </td>
+
+      {/* Eliminar */}
+      <td className="px-4 py-3 align-middle">
+        {!confirmDel ? (
+          <button
+            onClick={() => setConfirmDel(true)}
+            title="Eliminar usuario"
+            className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs text-red-400 hover:bg-red-500/20 transition-colors"
+          >
+            Eliminar
+          </button>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <p className="text-[10px] text-red-400 font-medium">¿Confirmar?</p>
+            <div className="flex gap-1">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-bold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? '…' : 'Sí, borrar'}
+              </button>
+              <button
+                onClick={() => { setConfirmDel(false); setDelMsg(null); }}
+                className="rounded border border-[var(--color-border)] px-2 py-0.5 text-[10px] hover:bg-white/5"
+              >
+                No
+              </button>
+            </div>
+            {delMsg && <p className="text-[10px] text-red-400">⚠ {delMsg}</p>}
+          </div>
         )}
       </td>
     </>
