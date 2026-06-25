@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { registerUser } from './actions';
 
@@ -30,41 +29,26 @@ export function RegisterForm() {
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
   const [error,    setError]    = useState('');
-  const [status,   setStatus]   = useState('');
 
-  const str  = strength(password);
-  const busy = isPending;
+  const str = strength(password);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError('');
-    setStatus('');
+
+    const fd = new FormData();
+    fd.append('name',     name);
+    fd.append('email',    email);
+    fd.append('password', password);
+    fd.append('confirm',  confirm);
 
     startTransition(async () => {
-      // 1. Crear usuario en el servidor
-      const fd = new FormData();
-      fd.append('name',     name);
-      fd.append('email',    email);
-      fd.append('password', password);
-      fd.append('confirm',  confirm);
-
       const result = await registerUser(null, fd);
-
       if (!result.ok) {
         setError(result.error);
         return;
       }
-
-      // 2. Iniciar sesión automáticamente
-      setStatus('Cuenta creada — iniciando sesión…');
-      const res = await signIn('credentials', { email, password, redirect: false });
-
-      if (res?.error) {
-        setError('Cuenta creada, pero no pudimos iniciar sesión automáticamente. Ve a iniciar sesión.');
-        return;
-      }
-
-      // 3. Redirigir a planes
+      // Datos guardados en cookie — ir a elegir el plan
       router.push('/planes');
     });
   }
@@ -121,18 +105,12 @@ export function RegisterForm() {
         </div>
       )}
 
-      {status && !error && (
-        <div className="rounded-lg bg-green-500/10 border border-green-500/30 px-4 py-3 text-sm text-green-400">
-          ✓ {status}
-        </div>
-      )}
-
       <button
-        type="submit" disabled={busy}
-        className="w-full rounded-lg py-3 text-sm font-bold text-white transition-colors disabled:opacity-60"
+        type="submit" disabled={isPending}
+        className="w-full rounded-lg py-3 text-sm font-bold text-white disabled:opacity-60"
         style={{ background: 'linear-gradient(135deg,#f97316,#fb923c)' }}
       >
-        {busy ? (status || 'Procesando…') : 'Crear cuenta y elegir plan →'}
+        {isPending ? 'Verificando…' : 'Continuar a elegir plan →'}
       </button>
 
       <p className="text-[11px] text-white/40 text-center">

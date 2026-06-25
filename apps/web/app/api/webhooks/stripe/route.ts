@@ -1,32 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@academia/db';
+import { verifyPendingReg } from '@/lib/pending-reg';
+import { createHmac } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
 const STRIPE_SECRET  = process.env.STRIPE_SECRET_KEY      ?? '';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET  ?? '';
 
-// Verificación manual de firma Stripe (sin SDK)
 async function verifyStripeSignature(body: string, header: string, secret: string): Promise<boolean> {
-  const parts   = Object.fromEntries(header.split(',').map(p => p.split('='))) as Record<string, string>;
-  const ts      = parts['t'];
-  const sig     = parts['v1'];
+  const parts = Object.fromEntries(header.split(',').map(p => p.split('='))) as Record<string, string>;
+  const ts    = parts['t'];
+  const sig   = parts['v1'];
   if (!ts || !sig) return false;
 
-  const payload = `${ts}.${body}`;
-  const key     = await crypto.subtle.importKey(
+  const payload  = `${ts}.${body}`;
+  const key = await crypto.subtle.importKey(
     'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
   );
-  const buf    = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
+  const buf      = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payload));
   const computed = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
   return computed === sig;
+}
+
+function makeUsernameBase(email: string): string {
+  return email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 28);
+}
+
+async function uniqueUsername(base: string): Promise<string> {
+  let username = base;
+  let n = 1;
+  while (true) {
+    const existing = await prisma.user.findFirst({ where: { username }, select: { id: true } });
+    if (!existing) return username;
+    username = `${base}${n++}`;
+  }
+}
+
+async function computeExpiresAt(billingCycle: string): Promise<Date> {
+  const d = new Date();
+  switch (billingCycle) {
+    case 'MONTHLY':   d.setMonth(d.getMonth() + 1);       break;
+    case 'QUARTERLY': d.setMonth(d.getMonth() + 3);       break;
+    case 'YEARLY':    d.setFullYear(d.getFullYear() + 1); break;
+    case 'LIFETIME':  d.setFullYear(d.getFullYear() + 99);break;
+  }
+  return d;
 }
 
 export async function POST(req: NextRequest) {
   const body   = await req.text();
   const sigHdr = req.headers.get('stripe-signature') ?? '';
 
-  // Verificar firma si hay secreto configurado
   if (WEBHOOK_SECRET) {
     const valid = await verifyStripeSignature(body, sigHdr, WEBHOOK_SECRET);
     if (!valid) return NextResponse.json({ error: 'Firma inválida' }, { status: 400 });
@@ -51,11 +76,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    const userId   = session.client_reference_id;
-    const planSlug = session.metadata?.planSlug;
+    const planSlug      = session.metadata?.planSlug;
+    const pendingToken  = session.metadata?.pendingReg;
+    let   userId        = session.client_reference_id;
 
-    if (!userId || !planSlug) {
-      console.error('[stripe webhook] Faltan userId o planSlug', { userId, planSlug });
+    if (!planSlug) {
+      console.error('[stripe webhook] Falta planSlug en metadata');
       return NextResponse.json({ received: true });
     }
 
@@ -69,30 +95,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // Calcular expiración según ciclo
-    const now       = new Date();
-    const expiresAt = new Date(now);
-    switch (plan.billingCycle) {
-      case 'MONTHLY':    expiresAt.setMonth(expiresAt.getMonth() + 1);    break;
-      case 'QUARTERLY':  expiresAt.setMonth(expiresAt.getMonth() + 3);    break;
-      case 'YEARLY':     expiresAt.setFullYear(expiresAt.getFullYear() + 1); break;
-      case 'LIFETIME':   expiresAt.setFullYear(expiresAt.getFullYear() + 99); break;
+    // — Nuevo usuario desde registro con cookie —
+    if (!userId && pendingToken) {
+      const pending = verifyPendingReg(pendingToken);
+      if (!pending) {
+        console.error('[stripe webhook] Token pendingReg inválido o expirado');
+        return NextResponse.json({ received: true });
+      }
+
+      // Verificar que el correo no haya sido creado ya (idempotencia)
+      let user = await prisma.user.findUnique({ where: { email: pending.email }, select: { id: true } });
+      if (!user) {
+        const username = await uniqueUsername(makeUsernameBase(pending.email));
+        user = await prisma.user.create({
+          data: {
+            name:         pending.name,
+            email:        pending.email,
+            passwordHash: pending.hash,
+            username,
+            emailVerified: new Date(), // se considera verificado porque pagó
+          },
+          select: { id: true },
+        });
+        console.log(`[stripe webhook] Usuario creado: ${pending.email}`);
+      }
+
+      userId = user.id;
     }
 
-    // Desactivar suscripciones anteriores
+    if (!userId) {
+      console.error('[stripe webhook] No hay userId ni pendingReg válido');
+      return NextResponse.json({ received: true });
+    }
+
+    const now       = new Date();
+    const expiresAt = await computeExpiresAt(plan.billingCycle);
+
     await prisma.subscription.updateMany({
       where: { userId, status: 'ACTIVE' },
       data:  { status: 'EXPIRED' },
     });
 
-    // Crear nueva suscripción
     await prisma.subscription.create({
       data: { userId, planId: plan.id, status: 'ACTIVE', startedAt: now, expiresAt },
     });
 
-    // Registrar pago
-    const amountMatch = (body as string).match(/"amount_total"\s*:\s*(\d+)/);
-    const currency    = ((body as string).match(/"currency"\s*:\s*"([^"]+)"/) ?? [])[1] ?? 'usd';
+    // Registrar pago (no crítico)
+    const amountMatch = body.match(/"amount_total"\s*:\s*(\d+)/);
+    const currency    = (body.match(/"currency"\s*:\s*"([^"]+)"/) ?? [])[1] ?? 'usd';
     if (amountMatch?.[1]) {
       await prisma.payment.create({
         data: {
@@ -105,7 +155,7 @@ export async function POST(req: NextRequest) {
       }).catch(() => { /* no crítico */ });
     }
 
-    console.log(`[stripe webhook] Suscripción creada para user=${userId} plan=${planSlug}`);
+    console.log(`[stripe webhook] Suscripción creada user=${userId} plan=${planSlug}`);
   }
 
   return NextResponse.json({ received: true });
