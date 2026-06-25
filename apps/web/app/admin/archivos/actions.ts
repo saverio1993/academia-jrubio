@@ -209,6 +209,26 @@ export async function createFile(formData: FormData) {
   await logAudit(admin.id, 'file.created', `file:${created.id}`, { title, brand });
   revalidatePath('/admin/archivos');
   revalidatePath('/api/ticker');
+
+  // Notificar a todos los suscriptores activos
+  try {
+    const subs = await prisma.subscription.findMany({
+      where:  { status: 'ACTIVE' },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    if (subs.length > 0) {
+      await prisma.notification.createMany({
+        data: subs.map(s => ({
+          userId:     s.userId,
+          title:      `Nuevo archivo: ${title}`,
+          body:       `${brand}${category ? ` · ${category}` : ''} — disponible en la biblioteca.`,
+          fileItemId: created.id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  } catch { /* no crítico */ }
 }
 
 export async function updateFile(formData: FormData) {

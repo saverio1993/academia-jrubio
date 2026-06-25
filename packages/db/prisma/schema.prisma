@@ -39,12 +39,14 @@ model User {
 
   passwordHash String?
 
-  subscriptions Subscription[]
-  payments      Payment[]
-  downloads     Download[]
-  auditLogs     AuditLog[]
-  accounts      Account[]
-  sessions      Session[]
+  subscriptions  Subscription[]
+  payments       Payment[]
+  downloads      Download[]
+  auditLogs      AuditLog[]
+  accounts       Account[]
+  sessions       Session[]
+  favorites      Favorite[]
+  notifications  Notification[]
 
   enrollments    Enrollment[]
   lessonProgress LessonProgress[]
@@ -225,14 +227,49 @@ model FileItem {
   downloadsCount  Int     @default(0)
   tags            String[] @default([])
 
-  downloads    Download[]
-  oneTimeLinks OneTimeLink[]
+  downloads     Download[]
+  oneTimeLinks  OneTimeLink[]
+  favorites     Favorite[]
+  notifications Notification[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([brand, category])
   @@index([tags])
+}
+
+// ---------- FAVORITOS ----------
+
+model Favorite {
+  id         String   @id @default(cuid())
+  userId     String
+  fileItemId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileItem FileItem @relation(fields: [fileItemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fileItemId])
+  @@index([userId])
+}
+
+// ---------- NOTIFICACIONES ----------
+
+model Notification {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String
+  body       String
+  fileItemId String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fileItem FileItem? @relation(fields: [fileItemId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }
 
 model Download {

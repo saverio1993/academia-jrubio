@@ -3,6 +3,7 @@ import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 import { UserMenu } from './user-menu';
 import { MobileMenu } from './mobile-menu';
+import { NotificationBell } from './notification-bell';
 
 export async function TopNav() {
   const session = await auth();
@@ -76,6 +77,7 @@ export async function TopNav() {
                 <span>⭐</span>
                 <span>Suscripción</span>
               </Link>
+              <NotificationBell />
               <UserMenu
                 name={user?.name ?? null}
                 email={user?.email ?? null}

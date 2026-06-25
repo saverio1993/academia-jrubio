@@ -120,6 +120,17 @@ export function UserMenu({ name, email, image, role }: Props) {
               </div>
             </Link>
             <Link
+              href="/favoritos"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"
+            >
+              <span>🧡</span>
+              <div>
+                <p className="font-medium">Mis guardados</p>
+                <p className="text-xs text-[var(--color-muted)]">Archivos favoritos</p>
+              </div>
+            </Link>
+            <Link
               href="/perfil/seguridad"
               onClick={() => setOpen(false)}
               className="flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-white/5 transition-colors"

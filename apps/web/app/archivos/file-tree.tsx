@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { DownloadButton } from './download-button';
 import { DownloadFolderButton } from './download-folder-button';
+import { FavoriteButton } from './favorite-button';
 import { bytes } from '@/lib/format';
 
 interface FileItem {
@@ -94,12 +95,14 @@ function FolderNode({
   depth,
   hasSub,
   userId,
+  favSet,
   onMenu,
 }: {
   node: TreeNode;
   depth: number;
   hasSub: boolean;
   userId: string;
+  favSet: Set<string>;
   onMenu: (m: ContextMenu) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -163,6 +166,7 @@ function FolderNode({
               depth={depth + 1}
               hasSub={hasSub}
               userId={userId}
+              favSet={favSet}
               onMenu={onMenu}
             />
           ))}
@@ -189,10 +193,11 @@ function FolderNode({
                     </span>
                   )}
                 </div>
-                <div className="shrink-0 flex items-center gap-2">
+                <div className="shrink-0 flex items-center gap-1.5">
                   <span className="text-[10px] text-[var(--color-muted)] hidden sm:inline">
                     {f.sizeBytes ? bytes(f.sizeBytes) : ''}
                   </span>
+                  <FavoriteButton fileItemId={f.id} initialFav={favSet.has(f.id)} />
                   <DownloadButton fileId={f.id} storageKey={f.storageKey} blocked={blocked} userId={userId} label={blocked ? 'PRO' : 'Descargar'} />
                 </div>
               </div>
@@ -216,7 +221,7 @@ function FolderNode({
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
-export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub: boolean; userId: string }) {
+export function FileTree({ files, hasSub, userId, favSet }: { files: FileItem[]; hasSub: boolean; userId: string; favSet: Set<string> }) {
   const brandNodes = useMemo(() => {
     const tree = buildTree(files);
     return Array.from(tree.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -262,6 +267,7 @@ export function FileTree({ files, hasSub, userId }: { files: FileItem[]; hasSub:
             depth={0}
             hasSub={hasSub}
             userId={userId}
+            favSet={favSet}
             onMenu={setMenu}
           />
         </div>
