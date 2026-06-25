@@ -50,7 +50,7 @@ export function ProfileNameEditor({ initialName }: { initialName: string }) {
         </div>
       ) : (
         <div className="flex items-center gap-3 group">
-          <h1 className="text-3xl font-bold">{name}</h1>
+          <h1 className="text-xl sm:text-3xl font-bold">{name}</h1>
           <button
             onClick={() => setEditing(true)}
             className="opacity-0 group-hover:opacity-100 text-xs text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-all border border-[var(--color-border)] rounded px-2 py-0.5"

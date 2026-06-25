@@ -52,7 +52,7 @@ export default async function ArchivosPage() {
                     Biblioteca
                   </span>
                 </div>
-                <h1 className="text-3xl font-black tracking-tight">
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
                   Archivos<span style={{ color: 'var(--color-accent)' }}> &</span> Firmware
                 </h1>
                 <p className="text-sm text-[var(--color-muted)] mt-1">

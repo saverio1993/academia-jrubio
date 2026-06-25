@@ -346,12 +346,12 @@ function BrandCard({
           e.preventDefault();
           onMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: node.storagePath, fileCount: total });
         }}
-        className="w-full group flex items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-white/[0.02]"
+        className="w-full group flex items-center gap-3 px-3 py-3 sm:px-5 sm:py-4 text-left transition-colors hover:bg-white/[0.02]"
         style={{ background: `linear-gradient(135deg, ${pal.from} 0%, transparent 70%)` }}
       >
         {/* Brand icon */}
         <div
-          className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-2xl"
+          className="shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xl sm:text-2xl"
           style={{ background: `${pal.dot}15`, border: `1px solid ${pal.dot}35` }}
         >
           {brandEmoji(node.name)}

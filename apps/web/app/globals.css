@@ -105,20 +105,45 @@ html:not(.light) body {
   .subscriber-grid { grid-template-columns: 1fr !important; }
 
   /* Subscriber home: hero inner padding más compacto */
-  .sub-hero-inner  { padding: 28px 16px 22px !important; }
+  .sub-hero-inner  { padding: 20px 16px 16px !important; }
 
   /* Subscriber home: quick-access → 2 columnas */
   .sub-quick-grid  {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
+    gap: 8px !important;
   }
 
   /* Subscriber home: mini stats row más junta */
-  .sub-mini-stats  { gap: 10px !important; }
+  .sub-mini-stats  { gap: 8px !important; }
 
   /* Subscriber home: plan badge ancho completo cuando se envuelve */
-  .sub-plan-badge  { width: 100% !important; text-align: center !important; }
+  .sub-plan-badge  { width: 100% !important; text-align: center !important; padding: 12px 20px !important; }
+
+  /* Subscriber home: avatar compacto */
+  .sub-hero-avatar { width: 48px !important; height: 48px !important; font-size: 16px !important; }
+
+  /* Subscriber home: nombre h1 */
+  .sub-hero-name   { font-size: clamp(20px, 5.5vw, 26px) !important; }
+
+  /* Subscriber home: números de estadísticas */
+  .sub-mini-val    { font-size: 14px !important; }
+
+  /* Subscriber home: secciones quick-access y main grid */
+  .sub-access-section { padding: 12px 16px 0 !important; }
+  .sub-main-section   { padding: 12px 16px 28px !important; }
+
+  /* Subscriber home: tarjetas de quick-access */
+  .sub-quick-item  { padding: 10px 12px !important; gap: 10px !important; }
+
+  /* Subscriber home: icono dentro de tarjeta quick-access */
+  .sub-quick-icon  {
+    width: 34px !important; height: 34px !important;
+    border-radius: 10px !important; font-size: 17px !important;
+  }
 }
+
+/* Quitar subrayado de todos los enlaces (botones/cards con href) */
+a { text-decoration: none; }
 
 /* Utilidad: texto con gradiente de marca (usable en cualquier página) */
 .grad-text {

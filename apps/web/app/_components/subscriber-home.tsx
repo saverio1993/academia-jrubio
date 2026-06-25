@@ -95,13 +95,13 @@ export function SubscriberHome({
               {/* Avatar */}
               {image ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={image} alt="avatar" style={{
+                <img src={image} alt="avatar" className="sub-hero-avatar" style={{
                   width: 72, height: 72, borderRadius: '50%', objectFit: 'cover',
                   border: '3px solid rgba(249,115,22,0.4)',
                   boxShadow: '0 0 0 4px rgba(249,115,22,0.12)',
                 }} />
               ) : (
-                <div style={{
+                <div className="sub-hero-avatar" style={{
                   width: 72, height: 72, borderRadius: '50%', flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 24, fontWeight: 900, color: '#fff',
@@ -116,7 +116,7 @@ export function SubscriberHome({
                 <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 4, fontWeight: 500 }}>
                   Bienvenido de vuelta 👋
                 </p>
-                <h1 style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, lineHeight: 1.1, margin: 0 }}>
+                <h1 className="sub-hero-name" style={{ fontSize: 'clamp(28px,4vw,44px)', fontWeight: 900, lineHeight: 1.1, margin: 0 }}>
                   {firstName}
                 </h1>
                 {/* Mini stat bar */}
@@ -129,7 +129,7 @@ export function SubscriberHome({
                       : null,
                   ].filter(Boolean).map((s) => s && (
                     <div key={s.l} style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
-                      <span style={{ fontSize: 18, fontWeight: 800, color: s.warn ? '#f87171' : 'var(--color-fg)' }}>
+                      <span className="sub-mini-val" style={{ fontSize: 18, fontWeight: 800, color: s.warn ? '#f87171' : 'var(--color-fg)' }}>
                         {s.v}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 500 }}>{s.l}</span>
@@ -178,7 +178,7 @@ export function SubscriberHome({
       </section>
 
       {/* ── QUICK ACCESS ── */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 0' }}>
+      <section className="sub-access-section" style={{ maxWidth: 1200, margin: '0 auto', padding: '28px 24px 0' }}>
         <div className="sub-quick-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 12 }}>
           {[
             {
@@ -205,7 +205,7 @@ export function SubscriberHome({
             <Link
               key={item.href}
               href={item.href}
-              className="group"
+              className="sub-quick-item group"
               style={{
                 display: 'flex', alignItems: 'center', gap: 14,
                 borderRadius: 16, border: `1px solid ${item.border}`,
@@ -222,7 +222,7 @@ export function SubscriberHome({
                 (e.currentTarget as HTMLAnchorElement).style.boxShadow = '';
               }}
             >
-              <div style={{
+              <div className="sub-quick-icon" style={{
                 width: 44, height: 44, borderRadius: 12, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 22, background: `${item.dot}18`, border: `1px solid ${item.dot}30`,
@@ -242,7 +242,7 @@ export function SubscriberHome({
       </section>
 
       {/* ── MAIN GRID: IA + SIDEBAR ── */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' }}>
+      <section className="sub-main-section" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}
           className="subscriber-grid"
         >

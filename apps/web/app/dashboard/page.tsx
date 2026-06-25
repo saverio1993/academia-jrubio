@@ -99,17 +99,17 @@ export default async function DashboardPage() {
 
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6 p-4 sm:p-8">
               {/* Saludo + avatar */}
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-3 sm:gap-5">
                 {user?.image ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={user.image}
                     alt="avatar"
-                    className="w-16 h-16 rounded-full object-cover ring-4 ring-[var(--color-accent)]/30"
+                    className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover ring-4 ring-[var(--color-accent)]/30"
                   />
                 ) : (
                   <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-black ring-4 ring-[var(--color-accent)]/20"
+                    className="w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center text-white text-base sm:text-xl font-black ring-4 ring-[var(--color-accent)]/20"
                     style={{ background: 'linear-gradient(135deg,#f97316,#fb923c)' }}
                   >
                     {initials(user?.name ?? null, user?.email ?? null)}
@@ -222,7 +222,7 @@ export default async function DashboardPage() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="group flex items-center gap-4 rounded-xl border px-5 py-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                className="group flex items-center gap-3 sm:gap-4 rounded-xl border px-4 py-3 sm:px-5 sm:py-4 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
                 style={{
                   background:   `linear-gradient(135deg, ${item.from}, ${item.to})`,
                   borderColor:  item.border,
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
               >
                 {/* Dot de color */}
                 <div
-                  className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-2xl"
+                  className="shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xl sm:text-2xl"
                   style={{ background: `${item.dot}18`, border: `1px solid ${item.dot}30` }}
                 >
                   {item.emoji}
