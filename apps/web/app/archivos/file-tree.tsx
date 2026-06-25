@@ -221,7 +221,9 @@ function FolderNode({
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
-export function FileTree({ files, hasSub, userId, favSet }: { files: FileItem[]; hasSub: boolean; userId: string; favSet: Set<string> }) {
+export function FileTree({ files, hasSub, userId, favIds }: { files: FileItem[]; hasSub: boolean; userId: string; favIds: string[] }) {
+  const favSet = useMemo(() => new Set(favIds), [favIds]);
+
   const brandNodes = useMemo(() => {
     const tree = buildTree(files);
     return Array.from(tree.values()).sort((a, b) => a.name.localeCompare(b.name));

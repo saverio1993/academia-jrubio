@@ -38,10 +38,8 @@ export default async function ArchivosPage({
   if (brand && brand !== 'Todas') where.brand = brand;
   if (category && category !== 'Todas') where.category = category;
 
-  const favSet = new Set(
-    (await prisma.favorite.findMany({ where: { userId }, select: { fileItemId: true } }))
-      .map(f => f.fileItemId),
-  );
+  const favIds = (await prisma.favorite.findMany({ where: { userId }, select: { fileItemId: true } }))
+    .map(f => f.fileItemId);
 
   const files = await prisma.fileItem.findMany({
     where,
@@ -96,7 +94,7 @@ export default async function ArchivosPage({
                 <p className="text-[var(--color-muted)]">No hay archivos que coincidan con tu búsqueda.</p>
               </div>
             ) : (
-              <FileTree files={files} hasSub={hasSub} userId={userId} favSet={favSet} />
+              <FileTree files={files} hasSub={hasSub} userId={userId} favIds={favIds} />
             )}
           </div>
 
