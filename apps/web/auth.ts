@@ -1,7 +1,9 @@
 import NextAuth from 'next-auth';
 import Google from 'next-auth/providers/google';
+import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@academia/db';
+import { verifyPassword } from '@/lib/password';
 
 function makeUsername(email: string): string {
   return email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30);
@@ -36,6 +38,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
       allowDangerousEmailAccountLinking: true,
+    }),
+    Credentials({
+      credentials: {
+        email:    { label: 'Email',      type: 'email' },
+        password: { label: 'Contraseña', type: 'password' },
+      },
+      async authorize(credentials) {
+        const email    = String(credentials?.email    ?? '').trim().toLowerCase();
+        const password = String(credentials?.password ?? '');
+        if (!email || !password) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, email: true, name: true, image: true, passwordHash: true },
+        });
+        if (!user?.passwordHash) return null;
+
+        const ok = await verifyPassword(user.passwordHash, password);
+        if (!ok) return null;
+
+        return { id: user.id, email: user.email!, name: user.name, image: user.image };
+      },
     }),
   ],
   pages: { signIn: '/signin' },

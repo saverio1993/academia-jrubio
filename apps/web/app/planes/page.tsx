@@ -18,19 +18,15 @@ interface Plan {
 }
 
 function formatPrice(cents: number, currency: string) {
-  return new Intl.NumberFormat('es-PA', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 2,
-  }).format(cents / 100);
+  return new Intl.NumberFormat('es-PA', { style: 'currency', currency, minimumFractionDigits: 2 }).format(cents / 100);
 }
 
 function cycleLabel(c: Plan['billingCycle']) {
   switch (c) {
-    case 'MONTHLY': return '/mes';
+    case 'MONTHLY':   return '/mes';
     case 'QUARTERLY': return '/trimestre';
-    case 'YEARLY': return '/año';
-    case 'LIFETIME': return 'pago único';
+    case 'YEARLY':    return '/año';
+    case 'LIFETIME':  return 'pago único';
   }
 }
 
@@ -50,7 +46,8 @@ async function createCheckout(planSlug: string, email?: string | null, userId?: 
   params.set('success_url', `${appUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`);
   params.set('cancel_url', `${appUrl}/planes`);
   params.set('allow_promotion_codes', 'true');
-  if (email) params.set('customer_email', email);
+  params.set('metadata[planSlug]', planSlug); // para el webhook
+  if (email)  params.set('customer_email', email);
   if (userId) params.set('client_reference_id', userId);
 
   const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
@@ -73,18 +70,19 @@ async function createCheckout(planSlug: string, email?: string | null, userId?: 
 
 export default async function PlanesPage() {
   const session = await auth();
-  const logged = Boolean(session?.user);
 
-  if (session?.user?.id) {
-    const activeSub = await prisma.subscription.findFirst({
-      where: { userId: session.user.id, status: 'ACTIVE' },
-      select: { id: true },
-    });
-    if (activeSub) redirect('/dashboard');
-  }
+  // Sin cuenta → registrarse primero
+  if (!session?.user?.id) redirect('/registro');
+
+  // Con suscripción activa → ya no necesita plan
+  const activeSub = await prisma.subscription.findFirst({
+    where: { userId: session.user.id, status: 'ACTIVE' },
+    select: { id: true },
+  });
+  if (activeSub) redirect('/dashboard');
 
   const plans = (await prisma.plan.findMany({
-    where: { isActive: true },
+    where: { isActive: true, slug: { not: 'gratis' } },
     orderBy: { sortOrder: 'asc' },
   })) as unknown as Plan[];
 
@@ -96,18 +94,27 @@ export default async function PlanesPage() {
 
       <TopNav />
 
-      <section className="wrap" style={{ paddingTop: 70 }}>
+      {/* Steps */}
+      <div style={{ textAlign: 'center', paddingTop: 28 }}>
+        <div style={{ display: 'inline-flex', gap: 0, fontSize: 12 }}>
+          <span style={{ padding: '4px 14px', borderRadius: '20px 0 0 20px', background: 'rgba(249,115,22,0.3)', color: '#fb923c', fontWeight: 600 }}>✓ Registro</span>
+          <span style={{ padding: '4px 14px', background: '#f97316', color: '#fff', fontWeight: 700 }}>2 Elegir plan</span>
+          <span style={{ padding: '4px 14px', borderRadius: '0 20px 20px 0', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)' }}>3 Pago</span>
+        </div>
+      </div>
+
+      <section className="wrap" style={{ paddingTop: 40 }}>
         <div className="stitle reveal in">
           <span className="eyebrow"><span className="pulse" /> Elige tu plan</span>
-          <h2 style={{ fontSize: 'clamp(34px,5vw,52px)', fontWeight: 900 }}>
-            Planes para <span className="grad">técnicos profesionales</span>
+          <h2 style={{ fontSize: 'clamp(30px,5vw,48px)', fontWeight: 900 }}>
+            ¿Qué acceso <span className="grad">necesitas?</span>
           </h2>
-          <p>Acceso completo a la biblioteca y, según tu plan, comunidad privada de Telegram y soporte directo con el instructor. Cancela cuando quieras.</p>
+          <p>Acceso completo a la biblioteca y, según tu plan, comunidad privada de Telegram y soporte directo.</p>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))', gap: 20, alignItems: 'start' }}>
           {plans.map((plan) => {
-            const pop = plan.slug === 'pro';
+            const pop      = plan.slug === 'pro';
             const features = Array.isArray(plan.features) ? (plan.features as string[]) : [];
             return (
               <div key={plan.id} className={`plan${pop ? ' pop' : ''}`}>
@@ -126,11 +133,11 @@ export default async function PlanesPage() {
                 <form
                   action={async () => {
                     'use server';
-                    await createCheckout(plan.slug, session?.user?.email, session?.user?.id);
+                    await createCheckout(plan.slug, session.user!.email, session.user!.id);
                   }}
                 >
                   <button type="submit" className={`btn ${pop ? 'btn-primary' : 'btn-ghost'}`}>
-                    {logged ? 'Suscribirme' : 'Continuar al pago'}
+                    Suscribirme a {plan.name} →
                   </button>
                 </form>
               </div>
@@ -144,14 +151,8 @@ export default async function PlanesPage() {
             <span>Visa</span><span>Mastercard</span><span>PayPal</span><span>Binance Pay</span>
           </div>
           <p className="muted" style={{ marginTop: 18, fontSize: 13 }}>
-            Sin compromiso. Cancela cuando quieras desde tu cuenta.
+            Sin compromiso. Puedes cancelar cuando quieras.
           </p>
-          {!logged && (
-            <p className="muted" style={{ marginTop: 8, fontSize: 13 }}>
-              ¿Ya tienes cuenta?{' '}
-              <Link href="/signin" style={{ color: '#fff', textDecoration: 'underline' }}>Inicia sesión</Link>
-            </p>
-          )}
         </div>
       </section>
 

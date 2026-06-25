@@ -1,37 +1,53 @@
 import Link from 'next/link';
-import { signIn } from '@/auth';
-import { LoginForm } from './login-form';
+import { auth, signIn } from '@/auth';
+import { redirect } from 'next/navigation';
+import { RegisterForm } from './register-form';
 
 export const dynamic = 'force-dynamic';
 
-export default function SignInPage() {
+export default async function RegistroPage() {
+  const session = await auth();
+  // Ya logueado → ir a planes directamente
+  if (session?.user?.id) redirect('/planes');
+
   return (
-    <main className="landing" style={{ display: 'flex', flexDirection: 'column' }}>
+    <main className="landing" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div className="glow g1" />
       <div className="glow g2" />
 
+      {/* Nav */}
       <nav style={{ padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Link href="/" className="logo" style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="dot">JR</span>
           <span style={{ fontWeight: 800, fontSize: 15 }}>Academia <span style={{ color: 'var(--lp-accent)' }}>J Rubio</span></span>
         </Link>
-        <Link href="/registro" className="btn btn-ghost" style={{ fontSize: 13 }}>
-          ¿No tienes cuenta? Regístrate
+        <Link href="/signin" className="btn btn-ghost" style={{ fontSize: 13 }}>
+          ¿Ya tienes cuenta? Inicia sesión
         </Link>
       </nav>
 
+      {/* Steps */}
+      <div style={{ textAlign: 'center', marginTop: 8, marginBottom: -8 }}>
+        <div style={{ display: 'inline-flex', gap: 0, fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
+          <span style={{ padding: '4px 14px', borderRadius: '20px 0 0 20px', background: '#f97316', color: '#fff', fontWeight: 700 }}>1 Registro</span>
+          <span style={{ padding: '4px 14px', background: 'rgba(255,255,255,0.08)' }}>2 Elegir plan</span>
+          <span style={{ padding: '4px 14px', borderRadius: '0 20px 20px 0', background: 'rgba(255,255,255,0.08)' }}>3 Pago</span>
+        </div>
+      </div>
+
+      {/* Card */}
       <div className="center-screen" style={{ flex: 1 }}>
-        <div className="authcard" style={{ maxWidth: 400, width: '100%' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Iniciar sesión</h1>
+        <div className="authcard" style={{ maxWidth: 420, width: '100%' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Crea tu cuenta</h1>
           <p className="muted" style={{ marginBottom: 24 }}>
-            Accede a tu cuenta de Academia J Rubio.
+            Accede a miles de archivos, firmware y soporte con IA.
           </p>
 
           {/* Google */}
           <form
             action={async () => {
               'use server';
-              await signIn('google', { redirectTo: '/dashboard' });
+              await signIn('google', { redirectTo: '/planes' });
             }}
             style={{ marginBottom: 20 }}
           >
@@ -49,12 +65,12 @@ export default function SignInPage() {
           {/* Divisor */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
-            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>o con tu correo</span>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>o regístrate con correo</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.1)' }} />
           </div>
 
-          {/* Email/password form */}
-          <LoginForm />
+          {/* Email form */}
+          <RegisterForm />
         </div>
       </div>
     </main>
