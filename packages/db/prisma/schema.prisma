@@ -56,6 +56,10 @@ model User {
   lessonComments LessonComment[]
   oneTimeLinks   OneTimeLink[]
 
+  posts         Post[]
+  postComments  PostComment[]
+  postReactions PostReaction[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -528,6 +532,64 @@ model Coupon {
   createdAt      DateTime  @default(now())
 
   @@index([code, active])
+}
+
+// ---------- COMUNIDAD FORO ----------
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+model Post {
+  id        String     @id @default(cuid())
+  title     String
+  slug      String     @unique
+  content   String     @db.Text
+  category  String     // 'frp' | 'imei' | 'flash' | 'unlock' | 'herramientas' | 'general'
+  status    PostStatus @default(PUBLISHED)
+  pinned    Boolean    @default(false)
+  views     Int        @default(0)
+  authorId  String
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments  PostComment[]
+  reactions PostReaction[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([status, pinned, createdAt])
+  @@index([category, status])
+  @@index([authorId])
+}
+
+model PostComment {
+  id        String        @id @default(cuid())
+  content   String        @db.Text
+  authorId  String
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    PostComment?  @relation("PostCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   PostComment[] @relation("PostCommentReplies")
+  createdAt DateTime      @default(now())
+
+  @@index([postId, createdAt])
+  @@index([parentId])
+}
+
+model PostReaction {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  type      String   // 'like' | 'heart' | 'fire'
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([postId, userId, type])
+  @@index([postId])
 }
 
 // ---------- IA CONFIGURACIÓN (Fase 2) ----------
