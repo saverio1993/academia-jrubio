@@ -73,8 +73,8 @@ function totalFiles(node: TreeNode): number {
 // ── Colores y emojis por marca ───────────────────────────────────────────────
 const BRAND_PALETTE: Record<string, { dot: string; from: string }> = {
   samsung:    { dot: '#3b82f6', from: 'rgba(59,130,246,0.10)' },
-  honor:      { dot: '#ef4444', from: 'rgba(239,68,68,0.10)'  },
-  huawei:     { dot: '#ef4444', from: 'rgba(239,68,68,0.10)'  },
+  honor:      { dot: '#f59e0b', from: 'rgba(245,158,11,0.10)'  },
+  huawei:     { dot: '#06b6d4', from: 'rgba(6,182,212,0.10)'  },
   xiaomi:     { dot: '#f97316', from: 'rgba(249,115,22,0.10)' },
   motorola:   { dot: '#6366f1', from: 'rgba(99,102,241,0.10)' },
   oppo:       { dot: '#22c55e', from: 'rgba(34,197,94,0.10)'  },
@@ -334,10 +334,20 @@ function BrandCard({
   const sortedFiles  = useMemo(() => [...node.files].sort((a, b) => a.title.localeCompare(b.title)), [node]);
   const visibleFiles = showAll ? sortedFiles : sortedFiles.slice(0, 30);
 
+  const [hovered, setHovered] = useState(false);
+
   return (
     <div
-      className="rounded-2xl border border-[var(--color-border)] overflow-hidden transition-shadow hover:shadow-lg"
-      style={{ background: 'var(--color-card)' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className="rounded-2xl border overflow-hidden"
+      style={{
+        background: 'var(--color-card)',
+        borderColor: hovered ? `${pal.dot}60` : 'var(--color-border)',
+        boxShadow: hovered ? `0 0 24px ${pal.dot}18, 0 4px 16px rgba(0,0,0,0.3)` : 'none',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+        transition: 'border-color 0.2s, box-shadow 0.2s, transform 0.2s',
+      }}
     >
       {/* ── Brand header ── */}
       <button
@@ -346,20 +356,32 @@ function BrandCard({
           e.preventDefault();
           onMenu({ x: e.clientX, y: e.clientY, kind: 'folder', folderPath: node.storagePath, fileCount: total });
         }}
-        className="w-full group flex items-center gap-3 px-3 py-3 sm:px-5 sm:py-4 text-left transition-colors hover:bg-white/[0.02]"
-        style={{ background: `linear-gradient(135deg, ${pal.from} 0%, transparent 70%)` }}
+        className="w-full flex items-center gap-3 px-3 py-3 sm:px-5 sm:py-4 text-left"
+        style={{
+          background: hovered
+            ? `linear-gradient(135deg, ${pal.dot}18 0%, transparent 65%)`
+            : `linear-gradient(135deg, ${pal.from} 0%, transparent 70%)`,
+          transition: 'background 0.2s',
+        }}
       >
         {/* Brand icon */}
         <div
           className="shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center text-xl sm:text-2xl"
-          style={{ background: `${pal.dot}15`, border: `1px solid ${pal.dot}35` }}
+          style={{
+            background: hovered ? `${pal.dot}25` : `${pal.dot}15`,
+            border: `1px solid ${hovered ? pal.dot + '60' : pal.dot + '35'}`,
+            transition: 'background 0.2s, border-color 0.2s',
+          }}
         >
           {brandEmoji(node.name)}
         </div>
 
         {/* Name + count */}
         <div className="flex-1 min-w-0 text-left">
-          <p className="font-black text-sm uppercase tracking-widest" style={{ color: pal.dot }}>
+          <p
+            className="font-black text-sm uppercase tracking-widest transition-colors duration-200"
+            style={{ color: hovered ? pal.dot : 'var(--color-fg)' }}
+          >
             {node.name}
           </p>
           <p className="text-[11px] text-[var(--color-muted)] mt-0.5">
