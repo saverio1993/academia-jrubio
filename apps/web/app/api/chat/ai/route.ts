@@ -50,30 +50,51 @@ export async function POST(req: NextRequest) {
       .map(k => k.replace(/[¿?¡!.,;:]/g, '').toLowerCase())
       .filter(k => k.length > 1 && !STOPWORDS.has(k));
 
-    // Búsqueda directa en BD para devolver archivos con botón de descarga
-    const matchingFiles = await prisma.fileItem.findMany({
-      where: {
-        OR: [
-          { title:      { contains: query, mode: 'insensitive' } },
-          { brand:      { contains: query, mode: 'insensitive' } },
-          { model:      { contains: query, mode: 'insensitive' } },
-          { storageKey: { contains: query, mode: 'insensitive' } },
-          ...keywords.map((k) => ({ title:    { contains: k, mode: 'insensitive' as const } })),
-          ...keywords.map((k) => ({ model:    { contains: k, mode: 'insensitive' as const } })),
-          ...keywords.map((k) => ({ brand:    { contains: k, mode: 'insensitive' as const } })),
-          ...keywords.map((k) => ({ category: { contains: k, mode: 'insensitive' as const } })),
-          ...keywords.map((k) => ({ storageKey: { contains: k, mode: 'insensitive' as const } })),
-        ],
-      },
-      select: {
-        id: true, title: true, brand: true, model: true,
-        category: true, storageKey: true, sizeBytes: true, isPremium: true,
-      },
-      take: 6,
-      orderBy: { downloadsCount: 'desc' },
-    });
+    // Búsqueda paralela: archivos + posts del foro
+    const fileOrClause = [
+      { title:      { contains: query, mode: 'insensitive' as const } },
+      { brand:      { contains: query, mode: 'insensitive' as const } },
+      { model:      { contains: query, mode: 'insensitive' as const } },
+      { storageKey: { contains: query, mode: 'insensitive' as const } },
+      ...keywords.map((k) => ({ title:    { contains: k, mode: 'insensitive' as const } })),
+      ...keywords.map((k) => ({ model:    { contains: k, mode: 'insensitive' as const } })),
+      ...keywords.map((k) => ({ brand:    { contains: k, mode: 'insensitive' as const } })),
+      ...keywords.map((k) => ({ category: { contains: k, mode: 'insensitive' as const } })),
+      ...keywords.map((k) => ({ storageKey: { contains: k, mode: 'insensitive' as const } })),
+    ];
 
-    const context = buildContextSummary(catalog);
+    const postOrClause = [
+      { title:   { contains: query, mode: 'insensitive' as const } },
+      { content: { contains: query, mode: 'insensitive' as const } },
+      ...keywords.map((k) => ({ title:   { contains: k, mode: 'insensitive' as const } })),
+      ...keywords.map((k) => ({ content: { contains: k, mode: 'insensitive' as const } })),
+    ];
+
+    const [matchingFiles, matchingPosts] = await Promise.all([
+      prisma.fileItem.findMany({
+        where: { OR: fileOrClause },
+        select: { id: true, title: true, brand: true, model: true, category: true, storageKey: true, sizeBytes: true, isPremium: true },
+        take: 6,
+        orderBy: { downloadsCount: 'desc' },
+      }),
+      prisma.post.findMany({
+        where: { status: 'PUBLISHED', OR: postOrClause },
+        select: {
+          slug: true, title: true, category: true, views: true,
+          author: { select: { name: true, email: true } },
+          _count: { select: { comments: true } },
+          comments: { where: { isSolution: true }, select: { id: true }, take: 1 },
+        },
+        take: 4,
+        orderBy: { views: 'desc' },
+      }),
+    ]);
+
+    const fileContext = buildContextSummary(catalog);
+    const postContext = matchingPosts.length > 0
+      ? `\n\n## Posts del foro relacionados\n${matchingPosts.map(p => `- "${p.title}" [${p.category}]${p.comments.length > 0 ? ' ✅ Resuelto' : ''}`).join('\n')}`
+      : '';
+
     const safeHistory = (history || [])
       .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
       .map((m: { role: 'user' | 'assistant'; content: string }) => ({
@@ -81,10 +102,9 @@ export async function POST(req: NextRequest) {
         content: m.content.substring(0, 500),
       }));
 
-    const reply = await callAI({ query, context, history: safeHistory, userId: session.user.id });
+    const reply = await callAI({ query, context: fileContext + postContext, history: safeHistory, userId: session.user.id });
 
-    // Si la búsqueda inicial no encontró nada, buscar con palabras clave de la respuesta de la IA
-    // (la IA puede encontrar archivos que la query original no matchea, ej: "pasamelo tú mismo")
+    // Si la búsqueda de archivos no encontró nada, reintenta con palabras de la respuesta IA
     let finalFiles = matchingFiles;
     if (finalFiles.length === 0 && reply.length > 10) {
       const replyKeywords = reply
@@ -103,10 +123,7 @@ export async function POST(req: NextRequest) {
               ...replyKeywords.map(k => ({ storageKey: { contains: k, mode: 'insensitive' as const } })),
             ],
           },
-          select: {
-            id: true, title: true, brand: true, model: true,
-            category: true, storageKey: true, sizeBytes: true, isPremium: true,
-          },
+          select: { id: true, title: true, brand: true, model: true, category: true, storageKey: true, sizeBytes: true, isPremium: true },
           take: 6,
           orderBy: { downloadsCount: 'desc' },
         });
@@ -118,7 +135,16 @@ export async function POST(req: NextRequest) {
       sizeBytes: f.sizeBytes != null ? Number(f.sizeBytes) : null,
     }));
 
-    return NextResponse.json({ reply, files });
+    const posts = matchingPosts.map((p) => ({
+      slug: p.slug,
+      title: p.title,
+      category: p.category,
+      authorName: p.author.name ?? p.author.email?.split('@')[0] ?? '',
+      commentsCount: p._count.comments,
+      isResolved: p.comments.length > 0,
+    }));
+
+    return NextResponse.json({ reply, files, posts });
   } catch (e) {
     console.error('[chat/ai error]', e);
     const msg = e instanceof Error ? e.message : 'Error desconocido';

@@ -14,12 +14,27 @@ interface FileResult {
   isPremium: boolean;
 }
 
+interface PostResult {
+  slug: string;
+  title: string;
+  category: string;
+  authorName: string;
+  commentsCount: number;
+  isResolved: boolean;
+}
+
+const FORUM_CAT: Record<string, string> = {
+  frp: '🔓 FRP', imei: '📡 IMEI', flash: '💾 Flash',
+  unlock: '🔑 Unlock', herramientas: '🛠️ Herramientas', general: '💬 General',
+};
+
 interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   timestamp: Date;
   files?: FileResult[];
+  posts?: PostResult[];
 }
 
 const CAT_ICON: Record<string, string> = {
@@ -132,6 +147,7 @@ export function AIChat({ userId, hasSub }: { userId: string; hasSub: boolean }) 
         content: data.reply || 'Sin respuesta.',
         timestamp: new Date(),
         files: data.files ?? [],
+        posts: data.posts ?? [],
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
@@ -171,6 +187,32 @@ export function AIChat({ userId, hasSub }: { userId: string; hasSub: boolean }) 
               }`}
             >
               <RenderText text={m.content} />
+
+              {/* Posts del foro */}
+              {m.posts && m.posts.length > 0 && (
+                <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
+                  <p className="text-[10px] text-[var(--color-muted)] uppercase tracking-wide font-semibold mb-2">
+                    💬 {m.posts.length} post{m.posts.length !== 1 ? 's' : ''} del foro
+                  </p>
+                  {m.posts.map((p) => (
+                    <a
+                      key={p.slug}
+                      href={`/comunidad/${p.slug}`}
+                      className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition-colors px-3 py-2"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold leading-snug truncate">{p.title}</p>
+                        <p className="text-[9px] text-[var(--color-muted)] mt-0.5">
+                          {FORUM_CAT[p.category] ?? p.category}
+                          {' · '}💬 {p.commentsCount}
+                          {p.isResolved ? ' · ✅ Resuelto' : ''}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-[var(--color-accent)] font-bold shrink-0">Ver →</span>
+                    </a>
+                  ))}
+                </div>
+              )}
 
               {/* Archivos encontrados — botones de descarga prominentes */}
               {m.files && m.files.length > 0 && (
