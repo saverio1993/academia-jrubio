@@ -38,6 +38,7 @@ model User {
   telegramHandle  String?
 
   passwordHash String?
+  reputation   Int      @default(0)
 
   subscriptions  Subscription[]
   payments       Payment[]

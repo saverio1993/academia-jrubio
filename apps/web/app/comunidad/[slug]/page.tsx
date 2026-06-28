@@ -10,6 +10,7 @@ import { CommentSection } from './comment-section';
 import { ReactionBar } from './reaction-bar';
 import { PostActions } from './post-actions';
 import { incrementViews } from './actions';
+import { getLevel } from '@/lib/reputation';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,7 +29,7 @@ export default async function PostPage({ params }: { params: Params }) {
   const post = await prisma.post.findUnique({
     where: { slug },
     include: {
-      author: { select: { id: true, name: true, email: true, image: true } },
+      author: { select: { id: true, name: true, email: true, image: true, reputation: true } },
       reactions: { select: { type: true, userId: true } },
       attachments: { orderBy: { createdAt: 'asc' } },
       comments: {
@@ -46,26 +47,33 @@ export default async function PostPage({ params }: { params: Params }) {
 
   if (!post || post.status === 'DRAFT') notFound();
 
-  // Increment view count (fire-and-forget)
   incrementViews(slug).catch(() => {});
+
+  // Fetch author stats in parallel
+  const [authorPostsCount, authorSolutionsCount] = await Promise.all([
+    prisma.post.count({ where: { authorId: post.author.id, status: 'PUBLISHED' } }),
+    prisma.postComment.count({ where: { authorId: post.author.id, isSolution: true } }),
+  ]);
 
   const cat = getCategory(post.category);
   const isClosed = post.status === 'CLOSED';
-
   const canEdit = isAdmin || post.author.id === userId;
-
   const isResolved = post.comments.some(c => c.isSolution && !c.parentId);
+
+  const reputationPoints = post.author.reputation ?? 0;
+  const level = getLevel(reputationPoints);
+  const authorName = post.author.name ?? post.author.email?.split('@')[0] ?? '?';
 
   const reactionCounts = post.reactions.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
     return acc;
   }, {});
+  const userReactions = userId
+    ? post.reactions.filter((r) => r.userId === userId).map((r) => r.type)
+    : [];
 
-  const userReactions = userId ? post.reactions.filter((r) => r.userId === userId).map((r) => r.type) : [];
+  const html = marked.parse(post.content) as string;
 
-  const html = await marked.parse(post.content);
-
-  // Build comment tree (only 1 level deep)
   const rootComments = post.comments.filter((c) => !c.parentId).map((c) => ({
     ...c,
     replies: post.comments.filter((r) => r.parentId === c.id).map((r) => ({ ...r, replies: [], isSolution: false })),
@@ -86,12 +94,10 @@ export default async function PostPage({ params }: { params: Params }) {
           </Link>
 
           {/* Post card */}
-          <article
-            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden mb-6"
-          >
-            {/* Header */}
+          <article className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] overflow-hidden mb-6">
+
+            {/* ── TOP: badges + title ── */}
             <div className="p-5 sm:p-6 border-b border-[var(--color-border)]">
-              {/* Category + status badges */}
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <span
                   className="text-[11px] font-bold rounded-full px-2.5 py-1"
@@ -125,130 +131,209 @@ export default async function PostPage({ params }: { params: Params }) {
                 )}
               </div>
 
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug mb-4">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug mb-3">
                 {post.title}
               </h1>
-
-              {/* Author row */}
-              <div className="flex items-center gap-3">
-                {post.author.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.author.image} alt="" className="w-10 h-10 rounded-full object-cover" />
-                ) : (
-                  <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                    style={{ background: cat.bg, color: cat.color, border: `1px solid ${cat.border}` }}
-                  >
-                    {initials(post.author.name, post.author.email)}
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm font-bold">
-                    {post.author.name ?? post.author.email?.split('@')[0]}
-                  </p>
-                  <p className="text-[11px] text-[var(--color-muted)]">
-                    {timeAgo(post.createdAt)} · {post.views} vistas
-                  </p>
-                </div>
-              </div>
 
               <PostActions slug={slug} title={post.title} canEdit={canEdit} />
             </div>
 
-            {/* Content */}
-            <div className="p-5 sm:p-6">
-              <div
-                className="post-content text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: html }}
-              />
-            </div>
+            {/* ── BODY: author panel | content ── */}
+            <div className="flex divide-x divide-[var(--color-border)]">
 
-            {/* Attachments */}
-            {post.attachments.length > 0 && (
-              <div className="px-5 sm:px-6 pb-2">
-                <div className="pt-4 border-t border-[var(--color-border)]">
-                  <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">
-                    📎 Adjuntos ({post.attachments.length})
+              {/* LEFT: Author panel (desktop only) */}
+              <aside
+                className="hidden sm:flex flex-col items-center gap-2 p-5 shrink-0 text-center"
+                style={{ width: 168 }}
+              >
+                {/* Avatar */}
+                {post.author.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={post.author.image}
+                    alt=""
+                    className="w-14 h-14 rounded-full object-cover"
+                    style={{ boxShadow: `0 0 0 2px ${level.color}60` }}
+                  />
+                ) : (
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center text-base font-black"
+                    style={{ background: `${level.color}20`, color: level.color, border: `2px solid ${level.color}40` }}
+                  >
+                    {initials(post.author.name, post.author.email)}
+                  </div>
+                )}
+
+                {/* Name */}
+                <p className="text-xs font-bold leading-tight max-w-full truncate px-1">
+                  {authorName}
+                </p>
+
+                {/* Reputation badge */}
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{ background: `${level.color}18`, color: level.color, border: `1px solid ${level.color}35` }}
+                >
+                  {level.emoji} {level.label}
+                </span>
+
+                {/* Points */}
+                <p className="text-[11px] font-semibold" style={{ color: level.color }}>
+                  {reputationPoints} pts
+                </p>
+
+                <div className="w-full border-t border-[var(--color-border)] my-1" />
+
+                {/* Stats */}
+                <div className="flex flex-col gap-1 w-full text-left">
+                  <p className="text-[10px] text-[var(--color-muted)]">
+                    📝 <span className="font-semibold text-[var(--color-fg)]">{authorPostsCount}</span>{' '}
+                    {authorPostsCount === 1 ? 'post' : 'posts'}
                   </p>
-
-                  {/* Image grid */}
-                  {(() => {
-                    const images = post.attachments.filter((a) => a.mimeType?.startsWith('image/'));
-                    const files  = post.attachments.filter((a) => !a.mimeType?.startsWith('image/'));
-                    return (
-                      <>
-                        {images.length > 0 && (
-                          <div className={`grid gap-2 mb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                            {images.map((img) => {
-                              const src = img.publicUrl.endsWith('/download')
-                                ? img.publicUrl
-                                : `${img.publicUrl}/download`;
-                              return (
-                                <a
-                                  key={img.id}
-                                  href={src}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
-                                  style={images.length === 1 ? { maxHeight: 500 } : { aspectRatio: '1/1' }}
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={src}
-                                    alt={img.fileName}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {files.length > 0 && (
-                          <div className="space-y-2">
-                            {files.map((f) => {
-                              const isPdf = f.mimeType === 'application/pdf';
-                              const sizeStr = f.sizeBytes
-                                ? Number(f.sizeBytes) < 1024 * 1024
-                                  ? `${(Number(f.sizeBytes) / 1024).toFixed(1)} KB`
-                                  : `${(Number(f.sizeBytes) / (1024 * 1024)).toFixed(1)} MB`
-                                : '';
-                              return (
-                                <a
-                                  key={f.id}
-                                  href={`${f.publicUrl}/download`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 hover:border-[var(--color-accent)]/40 transition-colors"
-                                >
-                                  <span className="text-2xl shrink-0">{isPdf ? '📄' : '🗜️'}</span>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold truncate">{f.fileName}</p>
-                                    {sizeStr && <p className="text-[11px] text-[var(--color-muted)]">{sizeStr}</p>}
-                                  </div>
-                                  <span className="text-xs text-[var(--color-accent)] font-semibold shrink-0">⬇ Descargar</span>
-                                </a>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
+                  {authorSolutionsCount > 0 && (
+                    <p className="text-[10px] text-[var(--color-muted)]">
+                      ✅ <span className="font-semibold text-[var(--color-fg)]">{authorSolutionsCount}</span>{' '}
+                      {authorSolutionsCount === 1 ? 'solución' : 'soluciones'}
+                    </p>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {/* Reactions */}
-            <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0">
-              <div className="pt-4 border-t border-[var(--color-border)]">
-                <ReactionBar
-                  slug={slug}
-                  counts={reactionCounts}
-                  userReactions={userReactions}
-                  canReact={canComment}
-                />
+                <div className="w-full border-t border-[var(--color-border)] my-1" />
+
+                {/* Time + views */}
+                <p className="text-[10px] text-[var(--color-muted)] leading-snug">
+                  {timeAgo(post.createdAt)}
+                </p>
+                <p className="text-[10px] text-[var(--color-muted)]">
+                  👁 {post.views} vistas
+                </p>
+              </aside>
+
+              {/* RIGHT: Content + attachments + reactions */}
+              <div className="flex-1 min-w-0">
+
+                {/* Mobile: author bar */}
+                <div className="flex sm:hidden items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
+                  {post.author.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={post.author.image} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ background: `${level.color}18`, color: level.color, border: `1px solid ${level.color}35` }}
+                    >
+                      {initials(post.author.name, post.author.email)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-xs font-bold">{authorName}</p>
+                      <span
+                        className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
+                        style={{ background: `${level.color}18`, color: level.color }}
+                      >
+                        {level.emoji} {level.label}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[var(--color-muted)]">
+                      {timeAgo(post.createdAt)} · {post.views} vistas
+                    </p>
+                  </div>
+                </div>
+
+                {/* Post content */}
+                <div className="p-5 sm:p-6">
+                  <div
+                    className="post-content text-sm leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                </div>
+
+                {/* Attachments */}
+                {post.attachments.length > 0 && (
+                  <div className="px-5 sm:px-6 pb-2">
+                    <div className="pt-4 border-t border-[var(--color-border)]">
+                      <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">
+                        📎 Adjuntos ({post.attachments.length})
+                      </p>
+                      {(() => {
+                        const images = post.attachments.filter((a) => a.mimeType?.startsWith('image/'));
+                        const files  = post.attachments.filter((a) => !a.mimeType?.startsWith('image/'));
+                        return (
+                          <>
+                            {images.length > 0 && (
+                              <div className={`grid gap-2 mb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                                {images.map((img) => {
+                                  const src = img.publicUrl.endsWith('/download')
+                                    ? img.publicUrl
+                                    : `${img.publicUrl}/download`;
+                                  return (
+                                    <a
+                                      key={img.id}
+                                      href={src}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
+                                      style={images.length === 1 ? { maxHeight: 500 } : { aspectRatio: '1/1' }}
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={src}
+                                        alt={img.fileName}
+                                        className="w-full h-full object-cover"
+                                        loading="lazy"
+                                      />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {files.length > 0 && (
+                              <div className="space-y-2">
+                                {files.map((f) => {
+                                  const isPdf = f.mimeType === 'application/pdf';
+                                  const sizeStr = f.sizeBytes
+                                    ? Number(f.sizeBytes) < 1024 * 1024
+                                      ? `${(Number(f.sizeBytes) / 1024).toFixed(1)} KB`
+                                      : `${(Number(f.sizeBytes) / (1024 * 1024)).toFixed(1)} MB`
+                                    : '';
+                                  return (
+                                    <a
+                                      key={f.id}
+                                      href={`${f.publicUrl}/download`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 hover:border-[var(--color-accent)]/40 transition-colors"
+                                    >
+                                      <span className="text-2xl shrink-0">{isPdf ? '📄' : '🗜️'}</span>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-semibold truncate">{f.fileName}</p>
+                                        {sizeStr && <p className="text-[11px] text-[var(--color-muted)]">{sizeStr}</p>}
+                                      </div>
+                                      <span className="text-xs text-[var(--color-accent)] font-semibold shrink-0">⬇ Descargar</span>
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {/* Reactions */}
+                <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0">
+                  <div className="pt-4 border-t border-[var(--color-border)]">
+                    <ReactionBar
+                      slug={slug}
+                      counts={reactionCounts}
+                      userReactions={userReactions}
+                      canReact={canComment}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </article>
@@ -267,9 +352,7 @@ export default async function PostPage({ params }: { params: Params }) {
           )}
 
           {/* Comments */}
-          <section
-            className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6"
-          >
+          <section className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-card)] p-5 sm:p-6">
             <CommentSection
               slug={slug}
               comments={rootComments}

@@ -4,6 +4,7 @@ import { hasActiveSubscription } from '@/lib/access';
 import { TopNav } from '@/components/top-nav';
 import Link from 'next/link';
 import { CATEGORIES, getCategory, timeAgo, initials } from './categories';
+import { getLevel } from '@/lib/reputation';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +20,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
   const hasSub = userId ? (isAdmin || (await hasActiveSubscription(userId))) : false;
 
   const where = {
-    status: { in: ['PUBLISHED', 'CLOSED'] as const },
+    status: { in: ['PUBLISHED', 'CLOSED'] as ('PUBLISHED' | 'CLOSED')[] },
     ...(cat ? { category: cat } : {}),
   };
 
@@ -29,7 +30,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
       orderBy: [{ pinned: 'desc' }, { createdAt: 'desc' }],
       take: 50,
       include: {
-        author: { select: { name: true, email: true, image: true } },
+        author: { select: { name: true, email: true, image: true, reputation: true } },
         _count: { select: { comments: true, reactions: true } },
         comments: { where: { isSolution: true, parentId: null }, select: { id: true }, take: 1 },
       },
@@ -145,6 +146,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                     const cat = getCategory(post.category);
                     const isClosed = post.status === 'CLOSED';
                     const isResolved = post.comments.length > 0;
+                    const level = getLevel(post.author.reputation ?? 0);
                     return (
                       <Link
                         key={post.id}
@@ -163,7 +165,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                           ) : (
                             <div
                               className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                              style={{ background: cat.bg, color: cat.color, border: `1px solid ${cat.border}` }}
+                              style={{ background: `${level.color}18`, color: level.color, border: `1px solid ${level.color}35` }}
                             >
                               {initials(post.author.name, post.author.email)}
                             </div>
@@ -195,7 +197,16 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                                 {cat.emoji} {cat.label}
                               </span>
                               <span className="text-[11px] text-[var(--color-muted)]">
-                                {post.author.name ?? post.author.email?.split('@')[0]} · {timeAgo(post.createdAt)}
+                                {post.author.name ?? post.author.email?.split('@')[0]}
+                              </span>
+                              <span
+                                className="text-[10px] font-bold rounded-full px-1.5 py-0.5"
+                                style={{ background: `${level.color}15`, color: level.color }}
+                              >
+                                {level.emoji} {level.label}
+                              </span>
+                              <span className="text-[11px] text-[var(--color-muted)]">
+                                · {timeAgo(post.createdAt)}
                               </span>
                             </div>
 

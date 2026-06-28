@@ -5,6 +5,7 @@ import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
 import { redirect } from 'next/navigation';
 import { CategoryKey } from './categories';
+import { recalculateReputation } from '@/lib/reputation';
 
 function slugify(text: string): string {
   return text
@@ -30,6 +31,7 @@ export async function deleteOwnPost(slug: string) {
   if (!isAdmin && post.authorId !== userId) throw new Error('Sin permiso para eliminar');
 
   await prisma.post.delete({ where: { id: post.id } });
+  await recalculateReputation(post.authorId).catch(() => {});
   redirect('/comunidad');
 }
 
@@ -118,5 +120,6 @@ export async function createPost(formData: FormData) {
     },
   });
 
+  await recalculateReputation(userId).catch(() => {});
   redirect(`/comunidad/${post.slug}`);
 }

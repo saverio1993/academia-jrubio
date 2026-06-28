@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
 import { revalidatePath } from 'next/cache';
+import { recalculateReputation } from '@/lib/reputation';
 
 async function assertCanPost(slug: string) {
   const session = await auth();
@@ -16,11 +17,11 @@ async function assertCanPost(slug: string) {
 
   if (!hasSub) throw new Error('Necesitas suscripción activa');
 
-  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true } });
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true, authorId: true } });
   if (!post) throw new Error('Post no encontrado');
   if (post.status === 'CLOSED' && !isAdmin) throw new Error('Este tema está cerrado');
 
-  return { userId, isAdmin, postId: post.id };
+  return { userId, isAdmin, postId: post.id, postAuthorId: post.authorId };
 }
 
 export async function addComment(slug: string, content: string, parentId?: string) {
@@ -54,7 +55,7 @@ export async function deleteComment(slug: string, commentId: string) {
 }
 
 export async function toggleReaction(slug: string, type: 'like' | 'heart' | 'fire') {
-  const { userId, postId } = await assertCanPost(slug);
+  const { userId, postId, postAuthorId } = await assertCanPost(slug);
 
   const existing = await prisma.postReaction.findUnique({
     where: { postId_userId_type: { postId, userId, type } },
@@ -67,6 +68,7 @@ export async function toggleReaction(slug: string, type: 'like' | 'heart' | 'fir
     await prisma.postReaction.create({ data: { postId, userId, type } });
   }
 
+  recalculateReputation(postAuthorId).catch(() => {});
   revalidatePath(`/comunidad/${slug}`);
 }
 
@@ -84,7 +86,7 @@ export async function markAsSolution(slug: string, commentId: string) {
 
   const comment = await prisma.postComment.findUnique({
     where: { id: commentId },
-    select: { isSolution: true, postId: true },
+    select: { isSolution: true, postId: true, authorId: true },
   });
   if (!comment || comment.postId !== post.id) throw new Error('Comentario no encontrado');
 
@@ -97,6 +99,7 @@ export async function markAsSolution(slug: string, commentId: string) {
     ]);
   }
 
+  recalculateReputation(comment.authorId).catch(() => {});
   revalidatePath(`/comunidad/${slug}`);
   revalidatePath('/comunidad');
 }
