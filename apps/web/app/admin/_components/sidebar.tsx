@@ -15,7 +15,8 @@ const LINKS = [
   { href: '/admin/links',    label: 'Links únicos' },
   { href: '/admin/reportes', label: 'Reportes' },
   { href: '/admin/cupones',  label: 'Cupones' },
-  { href: '/admin/stats', label: 'Estadísticas' },
+  { href: '/admin/stats',     label: 'Estadísticas' },
+  { href: '/admin/comunidad', label: 'Comunidad' },
 ];
 
 export function Sidebar() {

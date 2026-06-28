@@ -68,6 +68,13 @@ export function MobileMenu({ logged, role }: MobileMenuProps) {
                 📦 Archivos
               </Link>
               <Link
+                href="/comunidad"
+                onClick={close}
+                className="rounded-lg px-3 py-3 text-sm font-semibold text-[var(--color-fg)] bg-[var(--color-card)] border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
+              >
+                💬 Comunidad
+              </Link>
+              <Link
                 href="/academia"
                 onClick={close}
                 className="rounded-lg px-3 py-3 text-sm font-semibold text-white bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] transition-colors"

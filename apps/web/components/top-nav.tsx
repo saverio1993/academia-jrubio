@@ -45,6 +45,12 @@ export async function TopNav() {
                 📦 Archivos
               </Link>
               <Link
+                href="/comunidad"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-card)] hover:border-[var(--color-accent)]/50 hover:text-[var(--color-fg)] text-[var(--color-fg)] px-4 py-1.5 font-semibold transition-all"
+              >
+                💬 Comunidad
+              </Link>
+              <Link
                 href="/academia"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-4 py-1.5 font-semibold transition-all"
               >
