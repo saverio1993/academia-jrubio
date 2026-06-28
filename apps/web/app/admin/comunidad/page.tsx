@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { prisma } from '@academia/db';
 import Link from 'next/link';
 import { getCategory, timeAgo } from '@/app/comunidad/categories';
-import { pinPost, setPostStatus, deletePost } from './actions';
+import { PostRowActions } from './post-row-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,56 +101,12 @@ export default async function AdminComunidadPage() {
                     {timeAgo(post.createdAt)}
                   </td>
                   <td className="px-3 py-3">
-                    <div className="flex items-center gap-1.5">
-                      {/* Pin toggle */}
-                      <form action={pinPost.bind(null, post.id, !post.pinned)}>
-                        <button
-                          title={post.pinned ? 'Desfijar' : 'Fijar'}
-                          className="text-xs px-2 py-1 rounded-lg border border-[var(--color-border)] hover:border-[var(--color-accent)] transition-colors"
-                          style={post.pinned ? { color: 'var(--color-accent)' } : { color: 'var(--color-muted)' }}
-                        >
-                          📌
-                        </button>
-                      </form>
-
-                      {/* Close/Open toggle */}
-                      {post.status === 'CLOSED' ? (
-                        <form action={setPostStatus.bind(null, post.id, 'PUBLISHED')}>
-                          <button
-                            title="Reabrir"
-                            className="text-xs px-2 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-muted)] hover:text-green-500 transition-colors"
-                          >
-                            🔓
-                          </button>
-                        </form>
-                      ) : (
-                        <form action={setPostStatus.bind(null, post.id, 'CLOSED')}>
-                          <button
-                            title="Cerrar tema"
-                            className="text-xs px-2 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-muted)] hover:text-yellow-500 transition-colors"
-                          >
-                            🔒
-                          </button>
-                        </form>
-                      )}
-
-                      {/* Delete */}
-                      <form
-                        action={deletePost.bind(null, post.id)}
-                        onSubmit={(e) => {
-                          if (!confirm(`¿Eliminar "${post.title}"? Esta acción es irreversible.`)) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        <button
-                          title="Eliminar"
-                          className="text-xs px-2 py-1 rounded-lg border border-[var(--color-border)] text-[var(--color-muted)] hover:text-red-500 transition-colors"
-                        >
-                          🗑️
-                        </button>
-                      </form>
-                    </div>
+                    <PostRowActions
+                      postId={post.id}
+                      title={post.title}
+                      pinned={post.pinned}
+                      status={post.status}
+                    />
                   </td>
                 </tr>
               );
