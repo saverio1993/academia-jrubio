@@ -253,6 +253,18 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                 </div>
               )}
 
+              {/* Ranking link */}
+              <Link
+                href="/comunidad/ranking"
+                className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 hover:border-[var(--color-accent)]/40 transition-colors"
+              >
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-0.5">🏆 Ranking</p>
+                  <p className="text-sm font-semibold">Mejores técnicos</p>
+                </div>
+                <span className="text-[var(--color-muted)] text-sm">→</span>
+              </Link>
+
               {/* Categories */}
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">
