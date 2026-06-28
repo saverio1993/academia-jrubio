@@ -141,11 +141,10 @@ export default async function PostPage({ params }: { params: Params }) {
                 {post.title}
               </h1>
 
-              <div className="flex items-center gap-2 flex-wrap mt-2">
-                <PostActions slug={slug} title={post.title} canEdit={canEdit} />
+              <PostActions slug={slug} title={post.title} canEdit={canEdit}>
                 {userId && <SaveButton slug={slug} initialSaved={isSaved} />}
                 <AskAIPanel postTitle={post.title} postContent={post.content} />
-              </div>
+              </PostActions>
             </div>
 
             {/* ── BODY: author panel | content ── */}

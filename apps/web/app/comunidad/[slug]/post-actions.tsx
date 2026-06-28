@@ -9,9 +9,10 @@ interface Props {
   slug: string;
   title: string;
   canEdit: boolean;
+  children?: React.ReactNode;
 }
 
-export function PostActions({ slug, title, canEdit }: Props) {
+export function PostActions({ slug, title, canEdit, children }: Props) {
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -62,6 +63,7 @@ export function PostActions({ slug, title, canEdit }: Props) {
           </button>
         </>
       )}
+      {children}
     </div>
   );
 }
