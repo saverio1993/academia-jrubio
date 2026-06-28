@@ -553,8 +553,9 @@ model Post {
   views     Int        @default(0)
   authorId  String
   author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments  PostComment[]
-  reactions PostReaction[]
+  comments    PostComment[]
+  reactions   PostReaction[]
+  attachments PostAttachment[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
@@ -589,6 +590,20 @@ model PostReaction {
   createdAt DateTime @default(now())
 
   @@unique([postId, userId, type])
+  @@index([postId])
+}
+
+model PostAttachment {
+  id         String   @id @default(cuid())
+  postId     String
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  fileName   String
+  mimeType   String?
+  sizeBytes  BigInt?
+  storageKey String
+  publicUrl  String
+  createdAt  DateTime @default(now())
+
   @@index([postId])
 }
 

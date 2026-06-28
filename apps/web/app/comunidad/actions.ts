@@ -45,6 +45,16 @@ export async function createPost(formData: FormData) {
     slug = `${baseSlug}-${attempt}`;
   }
 
+  // Parse attachments JSON (optional)
+  let attachments: Array<{
+    storageKey: string; publicUrl: string; fileName: string;
+    mimeType?: string; sizeBytes?: number;
+  }> = [];
+  try {
+    const raw = formData.get('attachments') as string | null;
+    if (raw) attachments = JSON.parse(raw);
+  } catch { /* ignore */ }
+
   const post = await prisma.post.create({
     data: {
       title,
@@ -53,6 +63,15 @@ export async function createPost(formData: FormData) {
       category: category as CategoryKey,
       authorId: userId,
       status: 'PUBLISHED',
+      attachments: attachments.length > 0 ? {
+        create: attachments.map((a) => ({
+          fileName: a.fileName,
+          mimeType: a.mimeType ?? null,
+          sizeBytes: a.sizeBytes ? BigInt(a.sizeBytes) : null,
+          storageKey: a.storageKey,
+          publicUrl: a.publicUrl,
+        })),
+      } : undefined,
     },
   });
 

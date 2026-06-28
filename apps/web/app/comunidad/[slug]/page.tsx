@@ -29,6 +29,7 @@ export default async function PostPage({ params }: { params: Params }) {
     include: {
       author: { select: { id: true, name: true, email: true, image: true } },
       reactions: { select: { type: true, userId: true } },
+      attachments: { orderBy: { createdAt: 'asc' } },
       comments: {
         orderBy: { createdAt: 'asc' },
         include: {
@@ -146,6 +147,78 @@ export default async function PostPage({ params }: { params: Params }) {
                 dangerouslySetInnerHTML={{ __html: html }}
               />
             </div>
+
+            {/* Attachments */}
+            {post.attachments.length > 0 && (
+              <div className="px-5 sm:px-6 pb-2">
+                <div className="pt-4 border-t border-[var(--color-border)]">
+                  <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">
+                    📎 Adjuntos ({post.attachments.length})
+                  </p>
+
+                  {/* Image grid */}
+                  {(() => {
+                    const images = post.attachments.filter((a) => a.mimeType?.startsWith('image/'));
+                    const files  = post.attachments.filter((a) => !a.mimeType?.startsWith('image/'));
+                    return (
+                      <>
+                        {images.length > 0 && (
+                          <div className={`grid gap-2 mb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                            {images.map((img) => (
+                              <a
+                                key={img.id}
+                                href={img.publicUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
+                                style={images.length === 1 ? { maxHeight: 400 } : { aspectRatio: '1/1' }}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={img.publicUrl}
+                                  alt={img.fileName}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+
+                        {files.length > 0 && (
+                          <div className="space-y-2">
+                            {files.map((f) => {
+                              const isPdf = f.mimeType === 'application/pdf';
+                              const sizeStr = f.sizeBytes
+                                ? Number(f.sizeBytes) < 1024 * 1024
+                                  ? `${(Number(f.sizeBytes) / 1024).toFixed(1)} KB`
+                                  : `${(Number(f.sizeBytes) / (1024 * 1024)).toFixed(1)} MB`
+                                : '';
+                              return (
+                                <a
+                                  key={f.id}
+                                  href={`${f.publicUrl}/download`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 hover:border-[var(--color-accent)]/40 transition-colors"
+                                >
+                                  <span className="text-2xl shrink-0">{isPdf ? '📄' : '🗜️'}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold truncate">{f.fileName}</p>
+                                    {sizeStr && <p className="text-[11px] text-[var(--color-muted)]">{sizeStr}</p>}
+                                  </div>
+                                  <span className="text-xs text-[var(--color-accent)] font-semibold shrink-0">⬇ Descargar</span>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Reactions */}
             <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-0">
