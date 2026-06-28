@@ -4,6 +4,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { prisma } from '@academia/db';
 import { verifyPassword } from '@/lib/password';
+import { validateTelegramInitData } from '@/lib/telegram';
 
 function makeUsername(email: string): string {
   return email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 30);
@@ -59,6 +60,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!ok) return null;
 
         return { id: user.id, email: user.email!, name: user.name, image: user.image };
+      },
+    }),
+    Credentials({
+      id: 'telegram',
+      name: 'Telegram',
+      credentials: {
+        initData: { label: 'Telegram Init Data', type: 'text' },
+      },
+      async authorize(credentials) {
+        const initData = String(credentials?.initData ?? '');
+        if (!initData) return null;
+
+        const tgUser = validateTelegramInitData(initData);
+        if (!tgUser) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { telegramId: String(tgUser.id) },
+          select: { id: true, email: true, name: true, image: true },
+        });
+        if (!user?.email) return null;
+
+        return { id: user.id, email: user.email, name: user.name, image: user.image };
       },
     }),
   ],
