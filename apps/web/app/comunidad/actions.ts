@@ -17,6 +17,33 @@ function slugify(text: string): string {
     .slice(0, 80);
 }
 
+export async function updatePost(slug: string, formData: FormData) {
+  const session = await auth();
+  if (!session?.user?.id) redirect('/signin');
+
+  const userId = session.user.id;
+  const role = session.user.role as string;
+  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, authorId: true } });
+  if (!post) throw new Error('Post no encontrado');
+  if (!isAdmin && post.authorId !== userId) throw new Error('Sin permiso para editar');
+
+  const title = (formData.get('title') as string | null)?.trim() ?? '';
+  const content = (formData.get('content') as string | null)?.trim() ?? '';
+  const category = (formData.get('category') as string | null)?.trim() ?? 'general';
+
+  if (!title || title.length < 5) throw new Error('El título es demasiado corto');
+  if (!content || content.length < 20) throw new Error('El contenido es demasiado corto');
+
+  await prisma.post.update({
+    where: { id: post.id },
+    data: { title, content, category: category as CategoryKey },
+  });
+
+  redirect(`/comunidad/${slug}`);
+}
+
 export async function createPost(formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin?callbackUrl=/comunidad/crear');

@@ -51,6 +51,8 @@ export default async function PostPage({ params }: { params: Params }) {
   const cat = getCategory(post.category);
   const isClosed = post.status === 'CLOSED';
 
+  const canEdit = isAdmin || post.author.id === userId;
+
   const reactionCounts = post.reactions.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
     return acc;
@@ -112,9 +114,19 @@ export default async function PostPage({ params }: { params: Params }) {
                 )}
               </div>
 
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug mb-4">
-                {post.title}
-              </h1>
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug">
+                  {post.title}
+                </h1>
+                {canEdit && (
+                  <Link
+                    href={`/comunidad/${slug}/editar`}
+                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:border-[var(--color-accent)]/40 transition-colors"
+                  >
+                    ✏️ Editar
+                  </Link>
+                )}
+              </div>
 
               {/* Author row */}
               <div className="flex items-center gap-3">
