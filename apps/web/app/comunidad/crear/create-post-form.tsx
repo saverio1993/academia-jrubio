@@ -43,11 +43,6 @@ export function CreatePostForm() {
 
     const results: Attachment[] = [];
     for (const file of Array.from(files)) {
-      if (file.size > 10 * 1024 * 1024) {
-        setUploadError(`"${file.name}" supera el límite de 10 MB`);
-        continue;
-      }
-
       try {
         const res = await fetch(
           `/api/comunidad/upload?filename=${encodeURIComponent(file.name)}`,
@@ -196,7 +191,7 @@ export function CreatePostForm() {
       {/* Adjuntos */}
       <div>
         <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-2">
-          Adjuntos <span className="text-[10px] normal-case font-normal">(imágenes, PDF, ZIP · máx. 10 MB c/u)</span>
+          Adjuntos <span className="text-[10px] normal-case font-normal">(imágenes, PDF, ZIP · sin límite de tamaño)</span>
         </label>
 
         {/* Zona de drop / click */}

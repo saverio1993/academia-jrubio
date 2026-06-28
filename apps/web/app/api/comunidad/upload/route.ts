@@ -4,11 +4,8 @@ import { prisma } from '@academia/db';
 import { hasActiveSubscription } from '@/lib/access';
 import { getStorage } from '@academia/storage';
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
-
-// Max 10 MB per attachment
-const MAX_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
@@ -93,10 +90,6 @@ export async function POST(req: NextRequest) {
 
   if (!ALLOWED_TYPES.includes(mimeType)) {
     return NextResponse.json({ error: `Tipo de archivo no permitido: ${mimeType}` }, { status: 400 });
-  }
-
-  if (contentLength && contentLength > MAX_BYTES) {
-    return NextResponse.json({ error: 'El archivo supera el límite de 10 MB' }, { status: 413 });
   }
 
   if (!req.body) {
