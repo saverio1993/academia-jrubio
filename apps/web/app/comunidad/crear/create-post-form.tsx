@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition, useRef } from 'react';
-import { marked } from 'marked';
 import { createPost } from '../actions';
 import { CATEGORIES } from '../categories';
+import { PostEditor } from '../post-editor';
 
 const catKeys = Object.keys(CATEGORIES) as (keyof typeof CATEGORIES)[];
 
@@ -29,7 +29,6 @@ function fmtSize(bytes: number) {
 export function CreatePostForm() {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState(false);
   const [content, setContent] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -149,43 +148,10 @@ export function CreatePostForm() {
 
       {/* Contenido */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)]">
-            Contenido * <span className="text-[10px] normal-case font-normal">(Markdown)</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setPreview(!preview)}
-            className="text-xs font-semibold px-2 py-0.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-          >
-            {preview ? '✏️ Editar' : '👁 Vista previa'}
-          </button>
-        </div>
-
-        {preview ? (
-          <div
-            className="post-content min-h-[280px] rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm"
-            dangerouslySetInnerHTML={{
-              __html: content
-                ? (marked.parse(content) as string)
-                : '<p style="color:var(--color-muted)">Sin contenido aún…</p>',
-            }}
-          />
-        ) : (
-          <textarea
-            name="content"
-            required
-            minLength={20}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={14}
-            placeholder={`# Método paso a paso\n\n## Requisitos\n- Odin 3.14\n- Cable USB\n\n## Pasos\n1. Descargar el archivo...\n2. Abrir Odin...\n\n> Nota: funciona en A55 con One UI 6.`}
-            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm font-mono resize-y leading-relaxed placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-          />
-        )}
-        <p className="text-[11px] text-[var(--color-muted)] mt-1.5">
-          Acepta Markdown: **negrita**, *cursiva*, `código`, ## Encabezado, listas, &gt;citas
-        </p>
+        <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-2">
+          Contenido *
+        </label>
+        <PostEditor value={content} onChange={setContent} rows={14} />
       </div>
 
       {/* Adjuntos */}

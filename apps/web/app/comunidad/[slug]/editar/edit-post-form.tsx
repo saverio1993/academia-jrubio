@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { marked } from 'marked';
 import { updatePost } from '../../actions';
 import { CATEGORIES } from '../../categories';
+import { PostEditor } from '../../post-editor';
 
 const catKeys = Object.keys(CATEGORIES) as (keyof typeof CATEGORIES)[];
 
@@ -19,7 +19,6 @@ interface Props {
 export function EditPostForm({ slug, post }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState(false);
   const [content, setContent] = useState(post.content);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -87,39 +86,10 @@ export function EditPostForm({ slug, post }: Props) {
 
       {/* Contenido */}
       <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)]">
-            Contenido * <span className="text-[10px] normal-case font-normal">(Markdown)</span>
-          </label>
-          <button
-            type="button"
-            onClick={() => setPreview(!preview)}
-            className="text-xs font-semibold px-2 py-0.5 rounded-lg border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors"
-          >
-            {preview ? '✏️ Editar' : '👁 Vista previa'}
-          </button>
-        </div>
-
-        {preview ? (
-          <div
-            className="post-content min-h-[280px] rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm"
-            dangerouslySetInnerHTML={{
-              __html: content
-                ? (marked.parse(content) as string)
-                : '<p style="color:var(--color-muted)">Sin contenido…</p>',
-            }}
-          />
-        ) : (
-          <textarea
-            name="content"
-            required
-            minLength={20}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={16}
-            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm font-mono resize-y leading-relaxed placeholder:text-[var(--color-muted)] focus:outline-none focus:border-[var(--color-accent)]"
-          />
-        )}
+        <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-2">
+          Contenido *
+        </label>
+        <PostEditor value={content} onChange={setContent} rows={16} />
       </div>
 
       {/* Actions */}

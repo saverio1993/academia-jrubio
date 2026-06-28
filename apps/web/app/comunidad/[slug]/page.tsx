@@ -169,24 +169,29 @@ export default async function PostPage({ params }: { params: Params }) {
                       <>
                         {images.length > 0 && (
                           <div className={`grid gap-2 mb-3 ${images.length === 1 ? 'grid-cols-1' : images.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                            {images.map((img) => (
-                              <a
-                                key={img.id}
-                                href={img.publicUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
-                                style={images.length === 1 ? { maxHeight: 400 } : { aspectRatio: '1/1' }}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={img.publicUrl}
-                                  alt={img.fileName}
-                                  className="w-full h-full object-cover"
-                                  loading="lazy"
-                                />
-                              </a>
-                            ))}
+                            {images.map((img) => {
+                              const src = img.publicUrl.endsWith('/download')
+                                ? img.publicUrl
+                                : `${img.publicUrl}/download`;
+                              return (
+                                <a
+                                  key={img.id}
+                                  href={src}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block rounded-xl overflow-hidden border border-[var(--color-border)] hover:border-[var(--color-accent)]/50 transition-colors"
+                                  style={images.length === 1 ? { maxHeight: 500 } : { aspectRatio: '1/1' }}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={src}
+                                    alt={img.fileName}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                </a>
+                              );
+                            })}
                           </div>
                         )}
 
