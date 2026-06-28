@@ -285,7 +285,7 @@ export function PostEditor({ value, onChange, rows = 14 }: Props) {
 
                 {/* Emoji popup */}
                 {item.id === 'emoji' && showEmoji && (
-                  <div ref={emojiRef} className="absolute left-0 top-8 z-50 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-2">
+                  <div ref={emojiRef} className="absolute left-0 top-8 z-50 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] shadow-xl p-2" style={{ width: 260 }}>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)] mb-1.5 px-1">Emoji</p>
                     <div className="grid grid-cols-8 gap-0.5">
                       {EMOJIS.map(e => (
@@ -293,7 +293,8 @@ export function PostEditor({ value, onChange, rows = 14 }: Props) {
                           key={e}
                           type="button"
                           onClick={() => { insertAt(e); setShowEmoji(false); }}
-                          className="w-8 h-8 text-base rounded-lg hover:bg-[var(--color-bg)] transition-colors flex items-center justify-center"
+                          style={{ width: 28, height: 28, fontSize: 15, lineHeight: 1, overflow: 'hidden', flexShrink: 0 }}
+                          className="rounded-md hover:bg-[var(--color-bg)] transition-colors flex items-center justify-center"
                         >
                           {e}
                         </button>
