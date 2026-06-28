@@ -8,6 +8,7 @@ import { marked } from 'marked';
 import { getCategory, timeAgo, initials } from '../categories';
 import { CommentSection } from './comment-section';
 import { ReactionBar } from './reaction-bar';
+import { PostActions } from './post-actions';
 import { incrementViews } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -114,19 +115,9 @@ export default async function PostPage({ params }: { params: Params }) {
                 )}
               </div>
 
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug">
-                  {post.title}
-                </h1>
-                {canEdit && (
-                  <Link
-                    href={`/comunidad/${slug}/editar`}
-                    className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-fg)] hover:border-[var(--color-accent)]/40 transition-colors"
-                  >
-                    ✏️ Editar
-                  </Link>
-                )}
-              </div>
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight leading-snug mb-4">
+                {post.title}
+              </h1>
 
               {/* Author row */}
               <div className="flex items-center gap-3">
@@ -150,6 +141,8 @@ export default async function PostPage({ params }: { params: Params }) {
                   </p>
                 </div>
               </div>
+
+              <PostActions slug={slug} title={post.title} canEdit={canEdit} />
             </div>
 
             {/* Content */}

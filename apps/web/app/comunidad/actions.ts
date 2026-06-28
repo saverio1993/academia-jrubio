@@ -17,6 +17,22 @@ function slugify(text: string): string {
     .slice(0, 80);
 }
 
+export async function deleteOwnPost(slug: string) {
+  const session = await auth();
+  if (!session?.user?.id) redirect('/signin');
+
+  const userId = session.user.id;
+  const role = session.user.role as string;
+  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, authorId: true } });
+  if (!post) throw new Error('Post no encontrado');
+  if (!isAdmin && post.authorId !== userId) throw new Error('Sin permiso para eliminar');
+
+  await prisma.post.delete({ where: { id: post.id } });
+  redirect('/comunidad');
+}
+
 export async function updatePost(slug: string, formData: FormData) {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
