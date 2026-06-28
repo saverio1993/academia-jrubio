@@ -12,7 +12,7 @@ export async function GET() {
     where:   { userId: session.user.id },
     orderBy: { createdAt: 'desc' },
     take:    20,
-    select:  { id: true, title: true, body: true, read: true, fileItemId: true, createdAt: true },
+    select:  { id: true, title: true, body: true, read: true, fileItemId: true, postSlug: true, createdAt: true },
   });
 
   const unread = notifications.filter(n => !n.read).length;

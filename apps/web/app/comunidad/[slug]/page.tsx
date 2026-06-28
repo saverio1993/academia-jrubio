@@ -51,13 +51,23 @@ export default async function PostPage({ params }: { params: Params }) {
 
   incrementViews(slug).catch(() => {});
 
-  // Fetch author stats + saved status in parallel
-  const [authorPostsCount, authorSolutionsCount, savedRecord] = await Promise.all([
+  // Fetch author stats, saved status, related posts in parallel
+  const [authorPostsCount, authorSolutionsCount, savedRecord, relatedPosts] = await Promise.all([
     prisma.post.count({ where: { authorId: post.author.id, status: 'PUBLISHED' } }),
     prisma.postComment.count({ where: { authorId: post.author.id, isSolution: true } }),
     userId
       ? prisma.savedPost.findUnique({ where: { userId_postId: { userId, postId: post.id } }, select: { id: true } })
       : null,
+    prisma.post.findMany({
+      where: { category: post.category, status: 'PUBLISHED', id: { not: post.id } },
+      orderBy: [{ pinned: 'desc' }, { views: 'desc' }],
+      take: 3,
+      select: {
+        slug: true, title: true, createdAt: true,
+        author: { select: { name: true, email: true } },
+        _count: { select: { comments: true } },
+      },
+    }),
   ]);
   const isSaved = Boolean(savedRecord);
 
@@ -376,6 +386,32 @@ export default async function PostPage({ params }: { params: Params }) {
             <p className="text-center text-xs text-[var(--color-muted)] mt-4">
               🔒 Este tema está cerrado · No se aceptan nuevos comentarios
             </p>
+          )}
+
+          {/* Posts relacionados */}
+          {relatedPosts.length > 0 && (
+            <div className="mt-8">
+              <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">
+                {cat.emoji} Más en {cat.label}
+              </p>
+              <div className="flex flex-col gap-2">
+                {relatedPosts.map((r) => (
+                  <Link
+                    key={r.slug}
+                    href={`/comunidad/${r.slug}`}
+                    className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 hover:border-[var(--color-accent)]/40 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold leading-snug line-clamp-1">{r.title}</p>
+                      <p className="text-[11px] text-[var(--color-muted)] mt-0.5">
+                        {r.author.name ?? r.author.email?.split('@')[0]} · {timeAgo(r.createdAt)} · 💬 {r._count.comments}
+                      </p>
+                    </div>
+                    <span className="text-[var(--color-muted)] text-sm shrink-0">→</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </main>

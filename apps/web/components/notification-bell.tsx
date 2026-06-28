@@ -9,6 +9,7 @@ interface Notif {
   body: string;
   read: boolean;
   fileItemId: string | null;
+  postSlug: string | null;
   createdAt: string;
 }
 
@@ -66,7 +67,8 @@ export function NotificationBell() {
   function handleNotifClick(n: Notif) {
     if (!n.read) markRead(n.id);
     setOpen(false);
-    if (n.fileItemId) router.push('/archivos');
+    if (n.postSlug) router.push(`/comunidad/${n.postSlug}`);
+    else if (n.fileItemId) router.push('/archivos');
   }
 
   return (

@@ -290,6 +290,7 @@ model Notification {
   title      String
   body       String
   fileItemId String?
+  postSlug   String?
   read       Boolean  @default(false)
   createdAt  DateTime @default(now())
 

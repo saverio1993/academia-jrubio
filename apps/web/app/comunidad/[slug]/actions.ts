@@ -17,11 +17,11 @@ async function assertCanPost(slug: string) {
 
   if (!hasSub) throw new Error('Necesitas suscripción activa');
 
-  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true, authorId: true } });
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, status: true, authorId: true, title: true } });
   if (!post) throw new Error('Post no encontrado');
   if (post.status === 'CLOSED' && !isAdmin) throw new Error('Este tema está cerrado');
 
-  return { userId, isAdmin, postId: post.id, postAuthorId: post.authorId };
+  return { userId, isAdmin, postId: post.id, postAuthorId: post.authorId, postTitle: post.title };
 }
 
 export async function addComment(slug: string, content: string, parentId?: string) {
@@ -29,11 +29,25 @@ export async function addComment(slug: string, content: string, parentId?: strin
   if (!trimmed || trimmed.length < 2) throw new Error('Comentario demasiado corto');
   if (trimmed.length > 3000) throw new Error('Comentario demasiado largo');
 
-  const { userId, postId } = await assertCanPost(slug);
+  const { userId, postId, postAuthorId, postTitle } = await assertCanPost(slug);
 
   await prisma.postComment.create({
     data: { content: trimmed, authorId: userId, postId, parentId: parentId ?? null },
   });
+
+  // Notify post author (only for root comments, not replies to self)
+  if (!parentId && userId !== postAuthorId) {
+    const commenter = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+    const name = commenter?.name ?? commenter?.email?.split('@')[0] ?? 'Alguien';
+    prisma.notification.create({
+      data: {
+        userId: postAuthorId,
+        title: '💬 Nuevo comentario',
+        body: `${name} comentó en "${postTitle.slice(0, 60)}"`,
+        postSlug: slug,
+      },
+    }).catch(() => {});
+  }
 
   revalidatePath(`/comunidad/${slug}`);
 }
@@ -80,7 +94,7 @@ export async function markAsSolution(slug: string, commentId: string) {
   const role = session.user.role as string;
   const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
 
-  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, authorId: true } });
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, authorId: true, title: true } });
   if (!post) throw new Error('Post no encontrado');
   if (!isAdmin && post.authorId !== userId) throw new Error('Sin permiso');
 
@@ -90,13 +104,26 @@ export async function markAsSolution(slug: string, commentId: string) {
   });
   if (!comment || comment.postId !== post.id) throw new Error('Comentario no encontrado');
 
-  if (comment.isSolution) {
+  const wasSolution = comment.isSolution;
+
+  if (wasSolution) {
     await prisma.postComment.update({ where: { id: commentId }, data: { isSolution: false } });
   } else {
     await prisma.$transaction([
       prisma.postComment.updateMany({ where: { postId: post.id, isSolution: true }, data: { isSolution: false } }),
       prisma.postComment.update({ where: { id: commentId }, data: { isSolution: true } }),
     ]);
+    // Notify comment author when marked as solution
+    if (comment.authorId !== userId) {
+      prisma.notification.create({
+        data: {
+          userId: comment.authorId,
+          title: '✅ Tu respuesta fue marcada como solución',
+          body: `En "${post.title.slice(0, 60)}"`,
+          postSlug: slug,
+        },
+      }).catch(() => {});
+    }
   }
 
   recalculateReputation(comment.authorId).catch(() => {});
