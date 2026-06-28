@@ -39,6 +39,7 @@ model User {
 
   passwordHash String?
   reputation   Int      @default(0)
+  lastSeenAt   DateTime?
 
   subscriptions  Subscription[]
   payments       Payment[]
