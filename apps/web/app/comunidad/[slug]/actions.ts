@@ -70,6 +70,37 @@ export async function toggleReaction(slug: string, type: 'like' | 'heart' | 'fir
   revalidatePath(`/comunidad/${slug}`);
 }
 
+export async function markAsSolution(slug: string, commentId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('No autenticado');
+
+  const userId = session.user.id;
+  const role = session.user.role as string;
+  const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
+
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true, authorId: true } });
+  if (!post) throw new Error('Post no encontrado');
+  if (!isAdmin && post.authorId !== userId) throw new Error('Sin permiso');
+
+  const comment = await prisma.postComment.findUnique({
+    where: { id: commentId },
+    select: { isSolution: true, postId: true },
+  });
+  if (!comment || comment.postId !== post.id) throw new Error('Comentario no encontrado');
+
+  if (comment.isSolution) {
+    await prisma.postComment.update({ where: { id: commentId }, data: { isSolution: false } });
+  } else {
+    await prisma.$transaction([
+      prisma.postComment.updateMany({ where: { postId: post.id, isSolution: true }, data: { isSolution: false } }),
+      prisma.postComment.update({ where: { id: commentId }, data: { isSolution: true } }),
+    ]);
+  }
+
+  revalidatePath(`/comunidad/${slug}`);
+  revalidatePath('/comunidad');
+}
+
 export async function incrementViews(slug: string) {
   await prisma.post.update({
     where: { slug },

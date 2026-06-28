@@ -31,6 +31,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
       include: {
         author: { select: { name: true, email: true, image: true } },
         _count: { select: { comments: true, reactions: true } },
+        comments: { where: { isSolution: true, parentId: null }, select: { id: true }, take: 1 },
       },
     }),
     prisma.post.findMany({
@@ -143,6 +144,7 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                   {posts.map((post) => {
                     const cat = getCategory(post.category);
                     const isClosed = post.status === 'CLOSED';
+                    const isResolved = post.comments.length > 0;
                     return (
                       <Link
                         key={post.id}
@@ -175,6 +177,9 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                               )}
                               {isClosed && (
                                 <span className="text-[10px] font-semibold text-[var(--color-muted)]">🔒</span>
+                              )}
+                              {isResolved && (
+                                <span className="text-[10px] font-bold" style={{ color: '#22c55e' }}>✅</span>
                               )}
                               <h2 className="text-sm font-bold leading-snug line-clamp-2">
                                 {post.title}

@@ -54,6 +54,8 @@ export default async function PostPage({ params }: { params: Params }) {
 
   const canEdit = isAdmin || post.author.id === userId;
 
+  const isResolved = post.comments.some(c => c.isSolution && !c.parentId);
+
   const reactionCounts = post.reactions.reduce<Record<string, number>>((acc, r) => {
     acc[r.type] = (acc[r.type] ?? 0) + 1;
     return acc;
@@ -66,7 +68,7 @@ export default async function PostPage({ params }: { params: Params }) {
   // Build comment tree (only 1 level deep)
   const rootComments = post.comments.filter((c) => !c.parentId).map((c) => ({
     ...c,
-    replies: post.comments.filter((r) => r.parentId === c.id).map((r) => ({ ...r, replies: [] })),
+    replies: post.comments.filter((r) => r.parentId === c.id).map((r) => ({ ...r, replies: [], isSolution: false })),
   }));
 
   return (
@@ -111,6 +113,14 @@ export default async function PostPage({ params }: { params: Params }) {
                     style={{ background: 'rgba(107,114,128,0.12)', color: '#6b7280', border: '1px solid rgba(107,114,128,0.3)' }}
                   >
                     🔒 Cerrado
+                  </span>
+                )}
+                {isResolved && (
+                  <span
+                    className="text-[11px] font-bold rounded-full px-2.5 py-1"
+                    style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}
+                  >
+                    ✅ Resuelto
                   </span>
                 )}
               </div>
@@ -266,6 +276,7 @@ export default async function PostPage({ params }: { params: Params }) {
               canComment={canComment && !isClosed}
               currentUserId={userId}
               isAdmin={isAdmin}
+              postAuthorId={post.author.id}
             />
           </section>
 

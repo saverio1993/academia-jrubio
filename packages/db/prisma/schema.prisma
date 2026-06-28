@@ -571,10 +571,11 @@ model PostComment {
   author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   postId    String
   post      Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parentId  String?
-  parent    PostComment?  @relation("PostCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   PostComment[] @relation("PostCommentReplies")
-  createdAt DateTime      @default(now())
+  parentId   String?
+  parent     PostComment?  @relation("PostCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    PostComment[] @relation("PostCommentReplies")
+  isSolution Boolean       @default(false)
+  createdAt  DateTime      @default(now())
 
   @@index([postId, createdAt])
   @@index([parentId])
