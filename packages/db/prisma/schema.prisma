@@ -60,6 +60,7 @@ model User {
   posts         Post[]
   postComments  PostComment[]
   postReactions PostReaction[]
+  savedPosts    SavedPost[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -557,12 +558,25 @@ model Post {
   comments    PostComment[]
   reactions   PostReaction[]
   attachments PostAttachment[]
+  savedBy     SavedPost[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
   @@index([status, pinned, createdAt])
   @@index([category, status])
   @@index([authorId])
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([userId])
 }
 
 model PostComment {

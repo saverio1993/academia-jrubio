@@ -110,3 +110,26 @@ export async function incrementViews(slug: string) {
     data: { views: { increment: 1 } },
   });
 }
+
+export async function toggleSavePost(slug: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error('No autenticado');
+
+  const userId = session.user.id;
+  const post = await prisma.post.findUnique({ where: { slug }, select: { id: true } });
+  if (!post) throw new Error('Post no encontrado');
+
+  const existing = await prisma.savedPost.findUnique({
+    where: { userId_postId: { userId, postId: post.id } },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await prisma.savedPost.delete({ where: { id: existing.id } });
+  } else {
+    await prisma.savedPost.create({ data: { userId, postId: post.id } });
+  }
+
+  revalidatePath(`/comunidad/${slug}`);
+  revalidatePath('/comunidad/guardados');
+}

@@ -265,6 +265,20 @@ export default async function ComunidadPage({ searchParams }: { searchParams: Se
                 <span className="text-[var(--color-muted)] text-sm">→</span>
               </Link>
 
+              {/* Guardados link */}
+              {hasSub && (
+                <Link
+                  href="/comunidad/guardados"
+                  className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4 hover:border-[var(--color-accent)]/40 transition-colors"
+                >
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-0.5">🔖 Guardados</p>
+                    <p className="text-sm font-semibold">Mis posts guardados</p>
+                  </div>
+                  <span className="text-[var(--color-muted)] text-sm">→</span>
+                </Link>
+              )}
+
               {/* Categories */}
               <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] p-4">
                 <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-3">

@@ -7,6 +7,99 @@ import { PostEditor } from '../post-editor';
 
 const catKeys = Object.keys(CATEGORIES) as (keyof typeof CATEGORIES)[];
 
+const TEMPLATES = [
+  {
+    label: '📱 No enciende / Bootloop',
+    category: 'flash',
+    content: `## Descripción del problema
+El dispositivo no enciende o se queda en bootloop.
+
+**Marca y modelo:**
+**Estado antes del problema:**
+
+## Lo que intenté
+-
+
+## Error o síntoma exacto
+(Pantalla en negro, logo fijo, reinicio continuo…)
+
+## Pregunta
+`,
+  },
+  {
+    label: '🔓 Bypass FRP',
+    category: 'frp',
+    content: `## Dispositivo
+**Marca y modelo:**
+**Versión Android:**
+**Cuenta Google bloqueada:**
+
+## Situación
+(Ej: cuenta del cliente anterior, no recuerda la contraseña…)
+
+## Lo que probé
+-
+
+## Pregunta
+`,
+  },
+  {
+    label: '📡 Sin señal / IMEI nulo',
+    category: 'imei',
+    content: `## Dispositivo
+**Marca y modelo:**
+**Baseband:**
+
+## Síntoma
+- [ ] Sin señal
+- [ ] IMEI nulo o 000000
+- [ ] Busca red pero no conecta
+
+## Causa probable
+
+## Lo que intenté
+-
+
+## Pregunta
+`,
+  },
+  {
+    label: '🔧 Error al flashear',
+    category: 'flash',
+    content: `## Dispositivo
+**Marca y modelo:**
+**Herramienta usada:** (Odin, SP Flash Tool, MiFlash…)
+**Firmware usado:**
+
+## Error exacto
+\`\`\`
+(pega aquí el error)
+\`\`\`
+
+## Pasos que seguí
+1.
+2.
+
+## Pregunta
+`,
+  },
+  {
+    label: '🔑 Unlock / Desbloqueo',
+    category: 'unlock',
+    content: `## Dispositivo
+**Marca y modelo:**
+**Operador bloqueado:**
+**IMEI:**
+
+## Método intentado
+
+## Resultado
+
+## Pregunta
+`,
+  },
+] as const;
+
 interface Attachment {
   storageKey: string;
   publicUrl: string;
@@ -34,6 +127,7 @@ export function CreatePostForm() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const categoryRef = useRef<HTMLSelectElement>(null);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -109,6 +203,28 @@ export function CreatePostForm() {
         </div>
       )}
 
+      {/* Plantillas */}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-2">
+          📋 Usar plantilla
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.label}
+              type="button"
+              onClick={() => {
+                setContent(tpl.content);
+                if (categoryRef.current) categoryRef.current.value = tpl.category;
+              }}
+              className="rounded-full border border-[var(--color-border)] bg-[var(--color-card)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)] transition-colors"
+            >
+              {tpl.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Título */}
       <div>
         <label className="block text-xs font-bold uppercase tracking-widest text-[var(--color-muted)] mb-2">
@@ -133,6 +249,7 @@ export function CreatePostForm() {
           name="category"
           required
           defaultValue="general"
+          ref={categoryRef}
           className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-card)] px-4 py-3 text-sm font-medium focus:outline-none focus:border-[var(--color-accent)]"
         >
           {catKeys.map((k) => {

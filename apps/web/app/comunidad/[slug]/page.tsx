@@ -11,6 +11,8 @@ import { ReactionBar } from './reaction-bar';
 import { PostActions } from './post-actions';
 import { incrementViews } from './actions';
 import { getLevel } from '@/lib/reputation';
+import { SaveButton } from './save-button';
+import { AskAIPanel } from './ask-ai-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,11 +51,15 @@ export default async function PostPage({ params }: { params: Params }) {
 
   incrementViews(slug).catch(() => {});
 
-  // Fetch author stats in parallel
-  const [authorPostsCount, authorSolutionsCount] = await Promise.all([
+  // Fetch author stats + saved status in parallel
+  const [authorPostsCount, authorSolutionsCount, savedRecord] = await Promise.all([
     prisma.post.count({ where: { authorId: post.author.id, status: 'PUBLISHED' } }),
     prisma.postComment.count({ where: { authorId: post.author.id, isSolution: true } }),
+    userId
+      ? prisma.savedPost.findUnique({ where: { userId_postId: { userId, postId: post.id } }, select: { id: true } })
+      : null,
   ]);
+  const isSaved = Boolean(savedRecord);
 
   const cat = getCategory(post.category);
   const isClosed = post.status === 'CLOSED';
@@ -135,7 +141,11 @@ export default async function PostPage({ params }: { params: Params }) {
                 {post.title}
               </h1>
 
-              <PostActions slug={slug} title={post.title} canEdit={canEdit} />
+              <div className="flex items-center gap-2 flex-wrap mt-2">
+                <PostActions slug={slug} title={post.title} canEdit={canEdit} />
+                {userId && <SaveButton slug={slug} initialSaved={isSaved} />}
+                <AskAIPanel postTitle={post.title} postContent={post.content} />
+              </div>
             </div>
 
             {/* ── BODY: author panel | content ── */}
