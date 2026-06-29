@@ -111,7 +111,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         title: '🔍 Escribe un modelo o marca...',
         description: 'Ejemplo: Samsung A55 FRP, Redmi Note 12 firmware',
         input_message_content: { message_text: 'Busca archivos en Academia J Rubio' },
-        reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/archivos` }]] },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/tg/archivos` }]] },
       }],
     });
   }
@@ -125,7 +125,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         title: `Sin resultados para "${q}"`,
         description: 'Prueba con otra búsqueda o abre la biblioteca',
         input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${getAppUrl()}/archivos` },
-        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${getAppUrl()}/archivos` }]] },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${getAppUrl()}/tg/archivos` }]] },
       }],
     });
   }
@@ -138,7 +138,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
       message_text: `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''}\n${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · <i>${f.category}</i>`,
       parse_mode: 'HTML',
     },
-    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] },
+    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/tg/archivos` }]] },
   }));
 
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
@@ -157,21 +157,25 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
     const reply = await callAI({ query, context, userId: `tg_${chatId}` });
     const text  = `🤖 ${reply}${formatFiles(files)}`;
 
+    const searchUrl = `${getAppUrl()}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
     await sendMessage(chatId, text, {
-      reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] },
+      reply_markup: { inline_keyboard: [[{ text: '📁 Ver resultados', url: searchUrl }]] },
     });
   } catch (err) {
     console.error('[telegram/handleAIQuery]', err);
-    // Siempre intentar fallback a BD aunque la IA falle
     try {
       const files = await searchFiles(query, 6, categoryFilter);
+      const searchUrl = `${getAppUrl()}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
       if (files.length) {
         await sendMessage(chatId,
           `🔍 <b>Resultados para "${query}":</b>${formatFiles(files)}`,
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] } },
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver todos', url: searchUrl }]] } },
         );
       } else {
-        await sendMessage(chatId, `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`);
+        await sendMessage(chatId,
+          `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`,
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
+        );
       }
     } catch (e2) {
       console.error('[telegram/fallback]', e2);
@@ -200,7 +204,7 @@ async function handleMessage(msg: {
       '🔍 <b>/buscar</b> &lt;texto&gt; — busca cualquier archivo\n' +
       '💾 <b>/mifirmware</b> &lt;modelo&gt; — busca firmwares\n\n' +
       '<i>También escribe @este_bot en cualquier chat para buscar inline.</i>',
-      { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/archivos` }]] } },
+      { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
     );
     return;
   }
