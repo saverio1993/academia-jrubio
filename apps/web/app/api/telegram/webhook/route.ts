@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@academia/db';
+import { callAI } from '@/lib/ai';
 
 const TOKEN   = process.env.TELEGRAM_BOT_TOKEN ?? '';
-const APP_URL = (process.env.APP_URL ?? 'https://academia-jrubio.vercel.app').replace(/\/$/, '');
+const APP_URL = (process.env.APP_URL ?? 'https://academia-jrubio-web-saverio2023.vercel.app').replace(/\/$/, '');
 
 const CAT_ICON: Record<string, string> = {
   firmware: '💾', drivers: '🔧', frp: '🔓', root: '⚡',
@@ -20,49 +21,85 @@ async function tg(method: string, body: object) {
 }
 
 async function sendMessage(chatId: number | string, text: string, extra: object = {}) {
-  return tg('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', ...extra });
+  // Telegram max 4096 chars
+  const safe = text.length > 4000 ? text.slice(0, 3997) + '...' : text;
+  return tg('sendMessage', { chat_id: chatId, text: safe, parse_mode: 'HTML', ...extra });
 }
 
+async function sendTyping(chatId: number | string) {
+  return tg('sendChatAction', { chat_id: chatId, action: 'typing' });
+}
+
+// Misma lógica que /api/chat/ai — catálogo completo para contexto
+async function buildCatalogContext(categoryFilter?: string) {
+  const catalog = await prisma.fileItem.findMany({
+    where: categoryFilter ? { category: categoryFilter } : undefined,
+    select: { title: true, brand: true, model: true, category: true, subcategory: true },
+    take: 500,
+    orderBy: { downloadsCount: 'desc' },
+  });
+
+  const grouped: Record<string, Record<string, string[]>> = {};
+  for (const f of catalog) {
+    const brand = f.brand || 'Otros';
+    const cat   = f.category || 'sin categoría';
+    if (!grouped[brand])      grouped[brand] = {};
+    if (!grouped[brand][cat]) grouped[brand][cat] = [];
+    const display = `${f.title}${f.model ? ` (${f.model})` : ''}`;
+    if (!grouped[brand][cat].includes(display)) grouped[brand][cat].push(display);
+  }
+
+  const lines: string[] = [];
+  for (const [brand, cats] of Object.entries(grouped).sort()) {
+    lines.push(`\n## ${brand}`);
+    for (const [cat, items] of Object.entries(cats).sort()) {
+      lines.push(`  - ${cat}: ${items.slice(0, 20).join(', ')}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+// Búsqueda de archivos en BD (misma lógica que /api/chat/ai)
 async function searchFiles(query: string, limit = 5, category?: string) {
+  const STOPWORDS = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al']);
+  const keywords = query
+    .split(/\s+/)
+    .map(k => k.replace(/[¿?¡!.,;:]/g, '').toLowerCase())
+    .filter(k => k.length > 1 && !STOPWORDS.has(k));
+
+  const OR = [
+    { title: { contains: query, mode: 'insensitive' as const } },
+    { brand: { contains: query, mode: 'insensitive' as const } },
+    { model: { contains: query, mode: 'insensitive' as const } },
+    ...keywords.map(k => ({ title: { contains: k, mode: 'insensitive' as const } })),
+    ...keywords.map(k => ({ brand: { contains: k, mode: 'insensitive' as const } })),
+    ...keywords.map(k => ({ model: { contains: k, mode: 'insensitive' as const } })),
+  ];
+
   return prisma.fileItem.findMany({
-    where: {
-      ...(query.trim() ? {
-        OR: [
-          { title:    { contains: query, mode: 'insensitive' } },
-          { brand:    { contains: query, mode: 'insensitive' } },
-          { model:    { contains: query, mode: 'insensitive' } },
-        ],
-      } : {}),
-      ...(category ? { category } : {}),
-    },
+    where: { OR, ...(category ? { category } : {}) },
     orderBy: { downloadsCount: 'desc' },
     take: limit,
     select: { id: true, title: true, brand: true, model: true, category: true, isPremium: true },
   });
 }
 
-function formatCard(files: Awaited<ReturnType<typeof searchFiles>>, query: string) {
-  if (!files.length) return `Sin resultados para <b>${query}</b> en la biblioteca.`;
-  const lines = files.map(f => {
+function formatFiles(files: Awaited<ReturnType<typeof searchFiles>>) {
+  if (!files.length) return '';
+  return '\n\n📁 <b>Archivos relacionados:</b>\n' + files.map(f => {
     const icon  = CAT_ICON[f.category] ?? '📄';
     const model = f.model ? ` · ${f.model}` : '';
     const lock  = f.isPremium ? ' 🔒' : '';
-    return `${icon} <b>${f.title}</b>${lock}\n   ${f.brand ?? ''}${model} · <i>${f.category}</i>`;
-  });
-  return `🔍 <b>${files.length} resultado${files.length !== 1 ? 's' : ''}</b> para "<b>${query}</b>":\n\n${lines.join('\n\n')}`;
+    return `${icon} ${f.title}${lock} — ${f.brand ?? ''}${model}`;
+  }).join('\n');
 }
 
-function viewButton(label = '📁 Ver en Academia') {
-  return { inline_keyboard: [[{ text: label, url: `${APP_URL}/archivos` }]] };
-}
-
-// ── Inline query (#6) ───────────────────────────────────────────────────────
+// ── Inline query (#6) ─────────────────────────────────────────────────────────
 async function handleInlineQuery(query: { id: string; query: string }) {
   const q = query.query.trim();
   if (!q) {
     return tg('answerInlineQuery', {
-      inline_query_id: query.id,
-      cache_time: 5,
+      inline_query_id: query.id, cache_time: 5,
       results: [{
         type: 'article', id: 'empty',
         title: '🔍 Escribe un modelo o marca...',
@@ -72,72 +109,114 @@ async function handleInlineQuery(query: { id: string; query: string }) {
       }],
     });
   }
+
   const files = await searchFiles(q, 8);
   if (!files.length) {
     return tg('answerInlineQuery', {
-      inline_query_id: query.id,
-      cache_time: 5,
+      inline_query_id: query.id, cache_time: 5,
       results: [{
         type: 'article', id: 'no-results',
         title: `Sin resultados para "${q}"`,
-        description: 'Prueba con otra búsqueda',
-        input_message_content: { message_text: `Sin resultados para "${q}" en Academia J Rubio` },
+        description: 'Prueba con otra búsqueda o abre la biblioteca',
+        input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${APP_URL}/archivos` },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${APP_URL}/archivos` }]] },
       }],
     });
   }
+
   const results = files.map(f => ({
-    type: 'article',
-    id: f.id,
+    type: 'article', id: f.id,
     title: `${CAT_ICON[f.category] ?? '📄'} ${f.title}${f.isPremium ? ' 🔒' : ''}`,
     description: `${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · ${f.category}`,
     input_message_content: {
-      message_text: `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''}\n${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · <i>${f.category}</i>\n\n<a href="${APP_URL}/archivos">Ver en Academia J Rubio →</a>`,
+      message_text: `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''}\n${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · <i>${f.category}</i>`,
       parse_mode: 'HTML',
     },
-    reply_markup: {
-      inline_keyboard: [[{ text: '📁 Ver todos los archivos', url: `${APP_URL}/archivos` }]],
-    },
+    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] },
   }));
+
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
 }
 
-// ── Message commands ─────────────────────────────────────────────────────────
-async function handleMessage(msg: { chat: { id: number }; text?: string }) {
+// ── Comandos con IA ───────────────────────────────────────────────────────────
+async function handleAIQuery(chatId: number, query: string, categoryFilter?: string) {
+  await sendTyping(chatId);
+
+  try {
+    const [context, files] = await Promise.all([
+      buildCatalogContext(categoryFilter),
+      searchFiles(query, 5, categoryFilter),
+    ]);
+
+    // Llamar a la misma IA que usa la web
+    const reply = await callAI({
+      query,
+      context,
+      userId: `tg_${chatId}`,
+    });
+
+    const filesText = formatFiles(files);
+    const text = `🤖 ${reply}${filesText}`;
+
+    await sendMessage(chatId, text, {
+      reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Error desconocido';
+    // Si la IA falla, buscar solo en BD como fallback
+    if (msg.includes('no configurada') || msg.includes('MINIMAX')) {
+      const files = await searchFiles(query, 6, categoryFilter);
+      if (files.length) {
+        await sendMessage(chatId,
+          `🔍 Resultados para <b>${query}</b>:\n` + formatFiles(files),
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] } },
+        );
+      } else {
+        await sendMessage(chatId, `Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`);
+      }
+    } else {
+      await sendMessage(chatId, `❌ Error: ${msg.slice(0, 200)}`);
+    }
+  }
+}
+
+async function handleMessage(msg: { chat: { id: number }; from?: { id: number; first_name: string }; text?: string }) {
   const text   = (msg.text ?? '').trim();
   const chatId = msg.chat.id;
 
   if (text === '/start') {
+    const name = msg.from?.first_name ?? 'técnico';
     return sendMessage(chatId,
-      '👋 <b>Bienvenido a Academia J Rubio</b>\n\n' +
-      'Comandos:\n' +
-      '🔍 <b>/buscar</b> &lt;texto&gt; — busca archivos\n' +
+      `👋 <b>Hola ${name}!</b> Soy el asistente de Academia J Rubio.\n\n` +
+      'Puedes preguntarme lo que necesitas directamente, o usar los comandos:\n\n' +
+      '🔍 <b>/buscar</b> &lt;texto&gt; — busca cualquier archivo\n' +
       '💾 <b>/mifirmware</b> &lt;modelo&gt; — busca firmwares\n\n' +
-      'También escribe <b>@este_bot texto</b> en cualquier chat para buscar inline.',
-      { reply_markup: viewButton('📁 Abrir biblioteca') },
+      '<i>También escribe @este_bot en cualquier chat para buscar inline.</i>',
+      { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${APP_URL}/archivos` }]] } },
     );
   }
 
-  // #1 /buscar
+  // #1 /buscar Samsung A55 — usa IA
   if (text.toLowerCase().startsWith('/buscar')) {
     const query = text.replace(/^\/buscar\s*/i, '').trim();
     if (!query) {
       return sendMessage(chatId, 'Uso: <b>/buscar</b> &lt;modelo o marca&gt;\nEj: <code>/buscar Samsung A55 FRP</code>');
     }
-    const files = await searchFiles(query, 5);
-    return sendMessage(chatId, formatCard(files, query), {
-      reply_markup: files.length ? viewButton() : undefined,
-    });
+    return handleAIQuery(chatId, query);
   }
 
-  // #9 /mifirmware
+  // #9 /mifirmware Redmi Note 12 — usa IA filtrando firmware
   if (text.toLowerCase().startsWith('/mifirmware')) {
     const query = text.replace(/^\/mifirmware\s*/i, '').trim();
     if (!query) {
       return sendMessage(chatId, 'Uso: <b>/mifirmware</b> &lt;modelo&gt;\nEj: <code>/mifirmware Redmi Note 12</code>');
     }
-    const files = await searchFiles(query, 5, 'firmware');
-    const card  = files.length ? formatCard(files, query) : `💾 Sin firmwares para <b>${query}</b>. Prueba en la biblioteca completa.`;
-    return sendMessage(chatId, card, { reply_markup: viewButton('💾 Ver biblioteca completa') });
+    return handleAIQuery(chatId, query, 'firmware');
+  }
+
+  // Cualquier mensaje de texto también activa la IA
+  if (text && !text.startsWith('/')) {
+    return handleAIQuery(chatId, text);
   }
 }
 
@@ -152,7 +231,7 @@ export async function POST(req: NextRequest) {
 
   const update = await req.json();
 
-  if (update.inline_query) await handleInlineQuery(update.inline_query);
+  if (update.inline_query)  await handleInlineQuery(update.inline_query);
   else if (update.message)  await handleMessage(update.message);
 
   return NextResponse.json({ ok: true });
