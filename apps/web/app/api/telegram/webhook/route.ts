@@ -59,17 +59,19 @@ async function findFilesByTitles(titles: string[]) {
   });
 }
 
-// Búsqueda BD por keywords como fallback
-async function searchFiles(query: string, limit = 5, category?: string) {
-  const STOP = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al','me','mi','su','un']);
+// Búsqueda BD por keywords — longitud mínima 1 para incluir números ("7", "A5", etc.)
+async function searchFiles(query: string, limit = 8, category?: string) {
+  const STOP = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al','me','mi','su']);
   const keywords = query
     .split(/\s+/)
     .map(k => k.replace(/[¿?¡!.,;:]/g, '').toLowerCase())
-    .filter(k => k.length > 2 && !STOP.has(k));
+    .filter(k => k.length > 0 && !STOP.has(k));
 
   if (!keywords.length) return [];
 
+  // Búsqueda en título, marca y modelo por cada keyword
   const OR = [
+    { title: { contains: query, mode: 'insensitive' as const } }, // frase completa primero
     ...keywords.map(k => ({ title: { contains: k, mode: 'insensitive' as const } })),
     ...keywords.map(k => ({ brand: { contains: k, mode: 'insensitive' as const } })),
     ...keywords.map(k => ({ model: { contains: k, mode: 'insensitive' as const } })),
@@ -212,20 +214,34 @@ async function handleInlineQuery(query: { id: string; query: string }) {
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
 }
 
-// ── Búsqueda IA → títulos exactos → botones directos ─────────────────────────
+// ── Búsqueda: BD primero → IA narra los resultados → botones directos ────────
 async function handleAIQuery(chatId: number, query: string, categoryFilter?: string) {
   await sendTyping(chatId);
 
   try {
-    const context = await buildCatalogContext(categoryFilter);
-    const { reply, titles } = await callBotAI(query, context);
+    // 1. Buscar en BD con keywords (no depende del catálogo limitado)
+    const files = await searchFiles(query, 6, categoryFilter);
 
-    // Buscar en BD los títulos exactos que devolvió la IA
-    let files = await findFilesByTitles(titles);
-
-    // Si la IA no encontró títulos, fallback a búsqueda por keywords
     if (!files.length) {
-      files = await searchFiles(query, 5, categoryFilter);
+      await sendMessage(chatId,
+        `🔍 No encontré archivos para <b>${query}</b>.\nPrueba con otra búsqueda o explora la biblioteca.`,
+        { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
+      );
+      return;
+    }
+
+    // 2. Pasar solo los archivos encontrados a la IA para que narre la respuesta
+    const filesContext = files
+      .map(f => `- ${f.title} [${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · ${f.category}${f.isPremium ? ' · PREMIUM' : ''}]`)
+      .join('\n');
+
+    let reply = '';
+    try {
+      const { reply: aiReply } = await callBotAI(query, filesContext);
+      reply = aiReply;
+    } catch {
+      // Si la IA falla, generar respuesta básica
+      reply = `Encontré ${files.length} archivo${files.length > 1 ? 's' : ''} para <b>${query}</b>:`;
     }
 
     await sendMessage(chatId, `🤖 ${reply}`, {
@@ -235,23 +251,11 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
   } catch (err) {
     console.error('[telegram/handleAIQuery]', err);
     try {
-      const files = await searchFiles(query, 5, categoryFilter);
-      if (files.length) {
-        const text = files.map(f =>
-          `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''} — ${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''}`
-        ).join('\n');
-        await sendMessage(chatId, `🔍 <b>Resultados para "${query}":</b>\n\n${text}`, {
-          reply_markup: buildKeyboard(files, query, categoryFilter),
-        });
-      } else {
-        await sendMessage(chatId,
-          `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`,
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
-        );
-      }
-    } catch (e2) {
-      console.error('[telegram/fallback]', e2);
-    }
+      await sendMessage(chatId,
+        `❌ Error al buscar. Prueba directamente en la biblioteca.`,
+        { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
+      );
+    } catch { /* silent */ }
   }
 }
 
