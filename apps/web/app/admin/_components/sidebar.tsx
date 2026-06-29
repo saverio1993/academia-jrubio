@@ -7,7 +7,7 @@ const GROUPS = [
   {
     label: null,
     items: [
-      { href: '/admin', label: '🏠 Dashboard', exact: true },
+      { href: '/admin', label: 'Dashboard', exact: true },
     ],
   },
   {
@@ -33,7 +33,7 @@ const GROUPS = [
       { href: '/admin/planes', label: 'Planes' },
       { href: '/admin/links',  label: 'Links únicos' },
       { href: '/admin/ia',     label: 'Asistente IA' },
-      { href: '/admin/bot',    label: '🤖 Bot Telegram' },
+      { href: '/admin/bot',    label: 'Bot Telegram' },
     ],
   },
   {
@@ -48,34 +48,58 @@ const GROUPS = [
 export function Sidebar() {
   const pathname = usePathname();
 
+  const linkClass = (active: boolean) =>
+    `block rounded-lg px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap ${
+      active
+        ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+        : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-fg)]'
+    }`;
+
   return (
-    <nav className="flex flex-row flex-wrap gap-1 md:flex-col md:gap-0">
-      {GROUPS.map((group, gi) => (
-        <div key={gi} className="contents md:block md:mb-3">
-          {group.label && (
-            <p className="hidden md:block px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest"
-               style={{ color: 'var(--color-muted)' }}>
-              {group.label}
-            </p>
-          )}
-          {group.items.map((l) => {
-            const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
-            return (
-              <Link
-                key={l.href}
-                href={l.href}
-                className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                    : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-fg)]'
-                }`}
-              >
-                {l.label}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
-    </nav>
+    <>
+      {/* ── Desktop: sidebar vertical ── */}
+      <nav className="hidden md:flex flex-col gap-5">
+        {GROUPS.map((group, gi) => (
+          <div key={gi}>
+            {group.label && (
+              <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest"
+                 style={{ color: 'var(--color-muted)' }}>
+                {group.label}
+              </p>
+            )}
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((l) => {
+                const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
+                return (
+                  <Link key={l.href} href={l.href} className={linkClass(active)}>
+                    {l.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      {/* ── Mobile: barra horizontal con separadores ── */}
+      <nav className="md:hidden flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+        {GROUPS.map((group, gi) => (
+          <div key={gi} className="flex items-center gap-1 shrink-0">
+            {gi > 0 && (
+              <span className="h-4 w-px mx-1 shrink-0"
+                    style={{ background: 'var(--color-border)' }} />
+            )}
+            {group.items.map((l) => {
+              const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
+              return (
+                <Link key={l.href} href={l.href} className={linkClass(active)}>
+                  {l.label}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+    </>
   );
 }
