@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@academia/db';
-import { callAI } from '@/lib/ai';
 
-// Aumentar timeout de Vercel a 60s (IA puede tardar hasta 30s)
 export const maxDuration = 60;
 
 const CAT_ICON: Record<string, string> = {
@@ -38,45 +36,40 @@ async function sendTyping(chatId: number | string) {
   return tg('sendChatAction', { chat_id: chatId, action: 'typing' });
 }
 
+// Catálogo plano para contexto IA — lista todos los títulos con marca/categoría
 async function buildCatalogContext(categoryFilter?: string) {
   const catalog = await prisma.fileItem.findMany({
     where: categoryFilter ? { category: categoryFilter } : undefined,
-    select: { title: true, brand: true, model: true, category: true, subcategory: true },
-    take: 300,
+    select: { title: true, brand: true, model: true, category: true },
+    take: 400,
     orderBy: { downloadsCount: 'desc' },
   });
-
-  const grouped: Record<string, Record<string, string[]>> = {};
-  for (const f of catalog) {
-    const brand = f.brand || 'Otros';
-    const cat   = f.category || 'sin categoría';
-    if (!grouped[brand])      grouped[brand] = {};
-    if (!grouped[brand][cat]) grouped[brand][cat] = [];
-    const display = `${f.title}${f.model ? ` (${f.model})` : ''}`;
-    if (!grouped[brand][cat].includes(display)) grouped[brand][cat].push(display);
-  }
-
-  const lines: string[] = [];
-  for (const [brand, cats] of Object.entries(grouped).sort()) {
-    lines.push(`\n## ${brand}`);
-    for (const [cat, items] of Object.entries(cats).sort()) {
-      lines.push(`  - ${cat}: ${items.slice(0, 15).join(', ')}`);
-    }
-  }
-  return lines.join('\n');
+  return catalog
+    .map(f => `- ${f.title} [${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · ${f.category}]`)
+    .join('\n');
 }
 
+// Busca archivos por lista de títulos exactos que devuelve la IA
+async function findFilesByTitles(titles: string[]) {
+  if (!titles.length) return [];
+  return prisma.fileItem.findMany({
+    where: { title: { in: titles } },
+    select: { id: true, title: true, brand: true, model: true, category: true, isPremium: true },
+    take: 6,
+  });
+}
+
+// Búsqueda BD por keywords como fallback
 async function searchFiles(query: string, limit = 5, category?: string) {
-  const STOPWORDS = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al']);
+  const STOP = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al','me','mi','su','un']);
   const keywords = query
     .split(/\s+/)
     .map(k => k.replace(/[¿?¡!.,;:]/g, '').toLowerCase())
-    .filter(k => k.length > 1 && !STOPWORDS.has(k));
+    .filter(k => k.length > 2 && !STOP.has(k));
+
+  if (!keywords.length) return [];
 
   const OR = [
-    { title: { contains: query, mode: 'insensitive' as const } },
-    { brand: { contains: query, mode: 'insensitive' as const } },
-    { model: { contains: query, mode: 'insensitive' as const } },
     ...keywords.map(k => ({ title: { contains: k, mode: 'insensitive' as const } })),
     ...keywords.map(k => ({ brand: { contains: k, mode: 'insensitive' as const } })),
     ...keywords.map(k => ({ model: { contains: k, mode: 'insensitive' as const } })),
@@ -90,14 +83,89 @@ async function searchFiles(query: string, limit = 5, category?: string) {
   });
 }
 
-function formatFiles(files: Awaited<ReturnType<typeof searchFiles>>) {
-  if (!files.length) return '';
-  return '\n\n📁 <b>Archivos relacionados:</b>\n' + files.map(f => {
+// Llama a MiniMax con prompt específico para bot: respuesta + lista de títulos exactos
+async function callBotAI(query: string, context: string): Promise<{ reply: string; titles: string[] }> {
+  const apiKey = process.env.MINIMAX_API_KEY ?? '';
+  if (!apiKey) throw new Error('MINIMAX_API_KEY no configurada');
+
+  const endpoint = (process.env.MINIMAX_ENDPOINT ?? 'https://api.minimax.io/v1').replace(/\/+$/, '');
+  const model    = process.env.MINIMAX_MODEL ?? 'MiniMax-M2.7-highspeed';
+
+  const systemPrompt = `Eres el asistente de Academia J Rubio para técnicos de móviles.
+Se te proporciona el catálogo completo de archivos disponibles.
+
+TAREA:
+1. Responde brevemente la consulta del usuario (máximo 3 líneas)
+2. En la ÚLTIMA línea, escribe exactamente esto con los títulos encontrados:
+ARCHIVOS: Título exacto 1 | Título exacto 2 | Título exacto 3
+
+REGLAS:
+- Los títulos DEBEN ser exactamente como aparecen en el catálogo (copia y pega)
+- Si no encuentras ninguno, escribe: ARCHIVOS:
+- Máximo 5 archivos
+- Responde en español, breve y directo
+- NUNCA inventes títulos que no estén en el catálogo`;
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), 28_000);
+
+  try {
+    const res = await fetch(`${endpoint}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        max_tokens: 400,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'system', content: `Catálogo disponible:\n${context}` },
+          { role: 'user',   content: query },
+        ],
+      }),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data  = await res.json();
+    const raw   = (data?.choices?.[0]?.message?.content ?? '').trim();
+
+    // Separar respuesta de la línea ARCHIVOS:
+    const lines  = raw.split('\n');
+    const aIdx   = lines.findLastIndex((l: string) => l.startsWith('ARCHIVOS:'));
+    const titles = aIdx >= 0
+      ? lines[aIdx].replace('ARCHIVOS:', '').split('|').map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    const reply  = lines.slice(0, aIdx >= 0 ? aIdx : undefined).join('\n').trim()
+      || 'Aquí están los archivos encontrados:';
+
+    return { reply, titles };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Teclado con un botón por archivo (link directo al título exacto)
+function buildKeyboard(
+  files: { id: string; title: string; category: string; isPremium: boolean }[],
+  query: string,
+  categoryFilter?: string,
+) {
+  const base = getAppUrl();
+  const rows = files.map(f => {
     const icon  = CAT_ICON[f.category] ?? '📄';
-    const model = f.model ? ` · ${f.model}` : '';
     const lock  = f.isPremium ? ' 🔒' : '';
-    return `${icon} ${f.title}${lock} — ${f.brand ?? ''}${model}`;
-  }).join('\n');
+    const label = `${icon} ${f.title.slice(0, 38)}${lock}`;
+    const url   = `${base}/tg/archivos?q=${encodeURIComponent(f.title)}`;
+    return [{ text: label, url }];
+  });
+
+  if (!files.length || files.length >= 3) {
+    const allUrl = `${base}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
+    rows.push([{ text: '📁 Ver todos los resultados', url: allUrl }]);
+  }
+
+  return { inline_keyboard: rows };
 }
 
 // ── Inline query ──────────────────────────────────────────────────────────────
@@ -124,8 +192,8 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         type: 'article', id: 'no-results',
         title: `Sin resultados para "${q}"`,
         description: 'Prueba con otra búsqueda o abre la biblioteca',
-        input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${getAppUrl()}/archivos` },
-        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${getAppUrl()}/tg/archivos` }]] },
+        input_message_content: { message_text: `Sin resultados para "${q}". Ver en: ${getAppUrl()}/tg/archivos` },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] },
       }],
     });
   }
@@ -144,55 +212,41 @@ async function handleInlineQuery(query: { id: string; query: string }) {
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
 }
 
-// Teclado con un botón por archivo (link directo) + botón "Ver todos"
-function buildFileKeyboard(files: Awaited<ReturnType<typeof searchFiles>>, query: string, categoryFilter?: string) {
-  const base = getAppUrl();
-  const rows = files.slice(0, 5).map(f => {
-    const icon  = CAT_ICON[f.category] ?? '📄';
-    const lock  = f.isPremium ? ' 🔒' : '';
-    const label = `${icon} ${f.title.slice(0, 35)}${lock}`;
-    const url   = `${base}/tg/archivos?q=${encodeURIComponent(f.title)}`;
-    return [{ text: label, url }];
-  });
-  const allUrl = `${base}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
-  rows.push([{ text: '📁 Ver todos los resultados', url: allUrl }]);
-  return { inline_keyboard: rows };
-}
-
-// ── Búsqueda con IA + fallback a BD ──────────────────────────────────────────
+// ── Búsqueda IA → títulos exactos → botones directos ─────────────────────────
 async function handleAIQuery(chatId: number, query: string, categoryFilter?: string) {
   await sendTyping(chatId);
 
   try {
-    const [context, files] = await Promise.all([
-      buildCatalogContext(categoryFilter),
-      searchFiles(query, 5, categoryFilter),
-    ]);
+    const context = await buildCatalogContext(categoryFilter);
+    const { reply, titles } = await callBotAI(query, context);
 
-    const reply = await callAI({ query, context, userId: `tg_${chatId}` });
+    // Buscar en BD los títulos exactos que devolvió la IA
+    let files = await findFilesByTitles(titles);
+
+    // Si la IA no encontró títulos, fallback a búsqueda por keywords
+    if (!files.length) {
+      files = await searchFiles(query, 5, categoryFilter);
+    }
 
     await sendMessage(chatId, `🤖 ${reply}`, {
-      reply_markup: buildFileKeyboard(files, query, categoryFilter),
+      reply_markup: buildKeyboard(files, query, categoryFilter),
     });
+
   } catch (err) {
     console.error('[telegram/handleAIQuery]', err);
     try {
       const files = await searchFiles(query, 5, categoryFilter);
       if (files.length) {
-        const text = `🔍 <b>Resultados para "${query}":</b>\n` +
-          files.map(f => {
-            const icon = CAT_ICON[f.category] ?? '📄';
-            const lock = f.isPremium ? ' 🔒' : '';
-            return `${icon} ${f.title}${lock} — ${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''}`;
-          }).join('\n');
-        await sendMessage(chatId, text, {
-          reply_markup: buildFileKeyboard(files, query, categoryFilter),
+        const text = files.map(f =>
+          `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''} — ${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''}`
+        ).join('\n');
+        await sendMessage(chatId, `🔍 <b>Resultados para "${query}":</b>\n\n${text}`, {
+          reply_markup: buildKeyboard(files, query, categoryFilter),
         });
       } else {
-        const allUrl = `${getAppUrl()}/tg/archivos`;
         await sendMessage(chatId,
           `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`,
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: allUrl }]] } },
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
         );
       }
     } catch (e2) {
@@ -218,10 +272,10 @@ async function handleMessage(msg: {
     const name = msg.from?.first_name ?? 'técnico';
     await sendMessage(chatId,
       `👋 <b>Hola ${name}!</b> Soy el asistente de Academia J Rubio.\n\n` +
-      'Puedes preguntarme lo que necesitas directamente, o usar los comandos:\n\n' +
+      'Escríbeme directamente qué necesitas, o usa los comandos:\n\n' +
       '🔍 <b>/buscar</b> &lt;texto&gt; — busca cualquier archivo\n' +
       '💾 <b>/mifirmware</b> &lt;modelo&gt; — busca firmwares\n\n' +
-      '<i>También escribe @este_bot en cualquier chat para buscar inline.</i>',
+      '<i>También escribe @academiabot en cualquier chat para buscar inline.</i>',
       { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
     );
     return;
@@ -254,7 +308,6 @@ async function handleMessage(msg: {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  // Siempre devolver 200 a Telegram — nunca dejar que suba un 500
   try {
     if (!getToken()) {
       console.error('[telegram] TELEGRAM_BOT_TOKEN no configurado');
@@ -267,7 +320,6 @@ export async function POST(req: NextRequest) {
     }
 
     const update = await req.json();
-    console.log('[telegram] update type:', Object.keys(update).join(', '));
 
     if (update.inline_query)  await handleInlineQuery(update.inline_query);
     else if (update.message)  await handleMessage(update.message);
