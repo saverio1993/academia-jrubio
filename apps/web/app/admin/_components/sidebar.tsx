@@ -49,10 +49,10 @@ export function Sidebar() {
   const pathname = usePathname();
 
   const linkClass = (active: boolean) =>
-    `block rounded-lg px-3 py-1.5 text-sm font-medium transition-colors whitespace-nowrap ${
+    `block rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 whitespace-nowrap border-l-2 ${
       active
-        ? 'bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-        : 'text-[var(--color-muted)] hover:bg-white/5 hover:text-[var(--color-fg)]'
+        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)] pl-4'
+        : 'border-transparent text-[var(--color-muted)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent)]/8 hover:text-[var(--color-accent)] hover:pl-4'
     }`;
 
   return (
