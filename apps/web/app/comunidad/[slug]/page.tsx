@@ -13,10 +13,50 @@ import { incrementViews } from './actions';
 import { getLevel } from '@/lib/reputation';
 import { SaveButton } from './save-button';
 import { AskAIPanel } from './ask-ai-panel';
+import type { Metadata } from 'next';
 
 export const dynamic = 'force-dynamic';
 
 type Params = Promise<{ slug: string }>;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const { slug } = await params;
+  const post = await prisma.post.findUnique({
+    where: { slug },
+    select: { title: true, content: true, category: true, author: { select: { name: true } } },
+  });
+  if (!post) return { title: 'Post no encontrado · Academia J Rubio' };
+
+  const APP_URL = (process.env.APP_URL ?? 'https://academia-jrubio.vercel.app').replace(/\/$/, '');
+  const cat = getCategory(post.category);
+  // Strip markdown for description
+  const description = post.content
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/[#*`>|[\]()!]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+
+  return {
+    title: `${post.title} · ${cat.label} · Academia J Rubio`,
+    description,
+    openGraph: {
+      title: post.title,
+      description,
+      type: 'article',
+      url: `${APP_URL}/comunidad/${slug}`,
+      siteName: 'Academia J Rubio',
+    },
+    twitter: {
+      card: 'summary',
+      title: post.title,
+      description,
+    },
+    other: {
+      'telegram:channel': '@AcademiaJRubio',
+    },
+  };
+}
 
 export default async function PostPage({ params }: { params: Params }) {
   const { slug } = await params;
