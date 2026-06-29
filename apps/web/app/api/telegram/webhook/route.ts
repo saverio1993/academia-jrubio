@@ -120,7 +120,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         type: 'article', id: 'no-results',
         title: `Sin resultados para "${q}"`,
         description: 'Prueba con otra búsqueda o abre la biblioteca',
-        input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${APP_URL}/archivos` },
+        input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${getAppUrl()}/archivos` },
         reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${getAppUrl()}/archivos` }]] },
       }],
     });
@@ -230,7 +230,7 @@ async function handleMessage(msg: { chat: { id: number; type: string }; from?: {
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  if (!TOKEN) return NextResponse.json({ ok: false, error: 'no token' });
+  if (!getToken()) return NextResponse.json({ ok: false, error: 'no token' });
 
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (secret && req.headers.get('x-telegram-bot-api-secret-token') !== secret) {
