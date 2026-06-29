@@ -2,28 +2,34 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@academia/db';
 import { callAI } from '@/lib/ai';
 
+// Aumentar timeout de Vercel a 60s (IA puede tardar hasta 30s)
+export const maxDuration = 60;
+
 const CAT_ICON: Record<string, string> = {
   firmware: '💾', drivers: '🔧', frp: '🔓', root: '⚡',
   dump: '💿', tutoriales: '📖', herramientas: '🛠️', unlock: '🔑',
 };
 
-// Leídos en cada request para que funcionen tras agregar vars sin redeploy
 function getToken()  { return process.env.TELEGRAM_BOT_TOKEN ?? ''; }
 function getAppUrl() { return (process.env.APP_URL ?? 'https://academia-jrubio-web-nnl3.vercel.app').replace(/\/$/, ''); }
 
 async function tg(method: string, body: object) {
   const TOKEN = getToken();
   if (!TOKEN) return null;
-  const res = await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.json();
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  } catch (e) {
+    console.error(`[tg ${method}]`, e);
+    return null;
+  }
 }
 
 async function sendMessage(chatId: number | string, text: string, extra: object = {}) {
-  // Telegram max 4096 chars
   const safe = text.length > 4000 ? text.slice(0, 3997) + '...' : text;
   return tg('sendMessage', { chat_id: chatId, text: safe, parse_mode: 'HTML', ...extra });
 }
@@ -32,12 +38,11 @@ async function sendTyping(chatId: number | string) {
   return tg('sendChatAction', { chat_id: chatId, action: 'typing' });
 }
 
-// Misma lógica que /api/chat/ai — catálogo completo para contexto
 async function buildCatalogContext(categoryFilter?: string) {
   const catalog = await prisma.fileItem.findMany({
     where: categoryFilter ? { category: categoryFilter } : undefined,
     select: { title: true, brand: true, model: true, category: true, subcategory: true },
-    take: 500,
+    take: 300,
     orderBy: { downloadsCount: 'desc' },
   });
 
@@ -55,13 +60,12 @@ async function buildCatalogContext(categoryFilter?: string) {
   for (const [brand, cats] of Object.entries(grouped).sort()) {
     lines.push(`\n## ${brand}`);
     for (const [cat, items] of Object.entries(cats).sort()) {
-      lines.push(`  - ${cat}: ${items.slice(0, 20).join(', ')}`);
+      lines.push(`  - ${cat}: ${items.slice(0, 15).join(', ')}`);
     }
   }
   return lines.join('\n');
 }
 
-// Búsqueda de archivos en BD (misma lógica que /api/chat/ai)
 async function searchFiles(query: string, limit = 5, category?: string) {
   const STOPWORDS = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al']);
   const keywords = query
@@ -96,7 +100,7 @@ function formatFiles(files: Awaited<ReturnType<typeof searchFiles>>) {
   }).join('\n');
 }
 
-// ── Inline query (#6) ─────────────────────────────────────────────────────────
+// ── Inline query ──────────────────────────────────────────────────────────────
 async function handleInlineQuery(query: { id: string; query: string }) {
   const q = query.query.trim();
   if (!q) {
@@ -140,7 +144,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
 }
 
-// ── Comandos con IA ───────────────────────────────────────────────────────────
+// ── Búsqueda con IA + fallback a BD ──────────────────────────────────────────
 async function handleAIQuery(chatId: number, query: string, categoryFilter?: string) {
   await sendTyping(chatId);
 
@@ -150,51 +154,47 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
       searchFiles(query, 5, categoryFilter),
     ]);
 
-    // Llamar a la misma IA que usa la web
-    const reply = await callAI({
-      query,
-      context,
-      userId: `tg_${chatId}`,
-    });
-
-    const filesText = formatFiles(files);
-    const text = `🤖 ${reply}${filesText}`;
+    const reply = await callAI({ query, context, userId: `tg_${chatId}` });
+    const text  = `🤖 ${reply}${formatFiles(files)}`;
 
     await sendMessage(chatId, text, {
       reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] },
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Error desconocido';
-    // Si la IA falla, buscar solo en BD como fallback
-    if (msg.includes('no configurada') || msg.includes('MINIMAX')) {
+    console.error('[telegram/handleAIQuery]', err);
+    // Siempre intentar fallback a BD aunque la IA falle
+    try {
       const files = await searchFiles(query, 6, categoryFilter);
       if (files.length) {
         await sendMessage(chatId,
-          `🔍 Resultados para <b>${query}</b>:\n` + formatFiles(files),
+          `🔍 <b>Resultados para "${query}":</b>${formatFiles(files)}`,
           { reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] } },
         );
       } else {
-        await sendMessage(chatId, `Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`);
+        await sendMessage(chatId, `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`);
       }
-    } else {
-      await sendMessage(chatId, `❌ Error: ${msg.slice(0, 200)}`);
+    } catch (e2) {
+      console.error('[telegram/fallback]', e2);
     }
   }
 }
 
-async function handleMessage(msg: { chat: { id: number; type: string }; from?: { id: number; first_name: string }; text?: string }) {
-  // En grupos los comandos llegan como /buscar@NombreBot — quitar el @username
-  const raw    = (msg.text ?? '').trim();
-  const text   = raw.replace(/@\w+/g, '').trim();
-  const chatId = msg.chat.id;
+// ── Mensajes y comandos ───────────────────────────────────────────────────────
+async function handleMessage(msg: {
+  chat: { id: number; type: string };
+  from?: { id: number; first_name: string };
+  text?: string;
+}) {
+  const raw     = (msg.text ?? '').trim();
+  const text    = raw.replace(/@\w+/g, '').trim();
+  const chatId  = msg.chat.id;
   const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
 
-  // En grupos solo responder a comandos (que empiezan con /)
   if (isGroup && !text.startsWith('/')) return;
 
   if (text === '/start') {
     const name = msg.from?.first_name ?? 'técnico';
-    return sendMessage(chatId,
+    await sendMessage(chatId,
       `👋 <b>Hola ${name}!</b> Soy el asistente de Academia J Rubio.\n\n` +
       'Puedes preguntarme lo que necesitas directamente, o usar los comandos:\n\n' +
       '🔍 <b>/buscar</b> &lt;texto&gt; — busca cualquier archivo\n' +
@@ -202,45 +202,56 @@ async function handleMessage(msg: { chat: { id: number; type: string }; from?: {
       '<i>También escribe @este_bot en cualquier chat para buscar inline.</i>',
       { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/archivos` }]] } },
     );
+    return;
   }
 
-  // #1 /buscar Samsung A55 — usa IA
   if (text.toLowerCase().startsWith('/buscar')) {
     const query = text.replace(/^\/buscar\s*/i, '').trim();
     if (!query) {
-      return sendMessage(chatId, 'Uso: <b>/buscar</b> &lt;modelo o marca&gt;\nEj: <code>/buscar Samsung A55 FRP</code>');
+      await sendMessage(chatId, 'Uso: <b>/buscar</b> &lt;modelo o marca&gt;\nEj: <code>/buscar Samsung A55 FRP</code>');
+      return;
     }
-    return handleAIQuery(chatId, query);
+    await handleAIQuery(chatId, query);
+    return;
   }
 
-  // #9 /mifirmware Redmi Note 12 — usa IA filtrando firmware
   if (text.toLowerCase().startsWith('/mifirmware')) {
     const query = text.replace(/^\/mifirmware\s*/i, '').trim();
     if (!query) {
-      return sendMessage(chatId, 'Uso: <b>/mifirmware</b> &lt;modelo&gt;\nEj: <code>/mifirmware Redmi Note 12</code>');
+      await sendMessage(chatId, 'Uso: <b>/mifirmware</b> &lt;modelo&gt;\nEj: <code>/mifirmware Redmi Note 12</code>');
+      return;
     }
-    return handleAIQuery(chatId, query, 'firmware');
+    await handleAIQuery(chatId, query, 'firmware');
+    return;
   }
 
-  // Cualquier mensaje de texto también activa la IA
   if (text && !text.startsWith('/')) {
-    return handleAIQuery(chatId, text);
+    await handleAIQuery(chatId, text);
   }
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  if (!getToken()) return NextResponse.json({ ok: false, error: 'no token' });
+  // Siempre devolver 200 a Telegram — nunca dejar que suba un 500
+  try {
+    if (!getToken()) {
+      console.error('[telegram] TELEGRAM_BOT_TOKEN no configurado');
+      return NextResponse.json({ ok: true });
+    }
 
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (secret && req.headers.get('x-telegram-bot-api-secret-token') !== secret) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    if (secret && req.headers.get('x-telegram-bot-api-secret-token') !== secret) {
+      return NextResponse.json({ ok: false }, { status: 401 });
+    }
+
+    const update = await req.json();
+    console.log('[telegram] update type:', Object.keys(update).join(', '));
+
+    if (update.inline_query)  await handleInlineQuery(update.inline_query);
+    else if (update.message)  await handleMessage(update.message);
+  } catch (e) {
+    console.error('[telegram/POST]', e);
   }
-
-  const update = await req.json();
-
-  if (update.inline_query)  await handleInlineQuery(update.inline_query);
-  else if (update.message)  await handleMessage(update.message);
 
   return NextResponse.json({ ok: true });
 }
