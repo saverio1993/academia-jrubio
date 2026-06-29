@@ -59,30 +59,53 @@ async function findFilesByTitles(titles: string[]) {
   });
 }
 
-// Búsqueda BD por keywords — longitud mínima 1 para incluir números ("7", "A5", etc.)
-async function searchFiles(query: string, limit = 8, category?: string) {
+type FileResult = { id: string; title: string; brand: string | null; model: string | null; category: string; isPremium: boolean };
+
+// Búsqueda en dos pasos: primero coincidencia exacta de frase, luego keywords
+async function searchFiles(query: string, limit = 6, category?: string): Promise<FileResult[]> {
   const STOP = new Set(['el','la','los','las','un','una','del','de','en','con','para','por','que','es','se','al','me','mi','su']);
   const keywords = query
     .split(/\s+/)
     .map(k => k.replace(/[¿?¡!.,;:]/g, '').toLowerCase())
     .filter(k => k.length > 0 && !STOP.has(k));
 
-  if (!keywords.length) return [];
+  const sel = { id: true, title: true, brand: true, model: true, category: true, isPremium: true } as const;
+  const cat = category ? { category } : {};
 
-  // Búsqueda en título, marca y modelo por cada keyword
-  const OR = [
-    { title: { contains: query, mode: 'insensitive' as const } }, // frase completa primero
-    ...keywords.map(k => ({ title: { contains: k, mode: 'insensitive' as const } })),
-    ...keywords.map(k => ({ brand: { contains: k, mode: 'insensitive' as const } })),
-    ...keywords.map(k => ({ model: { contains: k, mode: 'insensitive' as const } })),
-  ];
-
-  return prisma.fileItem.findMany({
-    where: { OR, ...(category ? { category } : {}) },
+  // Paso 1: coincidencia exacta de frase en título o modelo (máxima relevancia)
+  const exact = await prisma.fileItem.findMany({
+    where: {
+      OR: [
+        { title: { contains: query, mode: 'insensitive' } },
+        { model: { contains: query, mode: 'insensitive' } },
+      ],
+      ...cat,
+    },
     orderBy: { downloadsCount: 'desc' },
     take: limit,
-    select: { id: true, title: true, brand: true, model: true, category: true, isPremium: true },
+    select: sel,
   });
+
+  if (exact.length >= limit) return exact;
+
+  // Paso 2: keywords individuales solo en título y modelo (no marca — evita traer todo HONOR)
+  if (!keywords.length) return exact;
+  const exactIds = exact.map(f => f.id);
+  const broader = await prisma.fileItem.findMany({
+    where: {
+      ...(exactIds.length ? { id: { notIn: exactIds } } : {}),
+      OR: [
+        ...keywords.map(k => ({ title: { contains: k, mode: 'insensitive' as const } })),
+        ...keywords.map(k => ({ model: { contains: k, mode: 'insensitive' as const } })),
+      ],
+      ...cat,
+    },
+    orderBy: { downloadsCount: 'desc' },
+    take: limit - exact.length,
+    select: sel,
+  });
+
+  return [...exact, ...broader];
 }
 
 // Llama a MiniMax con prompt específico para bot: respuesta + lista de títulos exactos
