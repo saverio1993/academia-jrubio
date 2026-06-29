@@ -58,14 +58,28 @@ export function Sidebar() {
   return (
     <>
       {/* ── Desktop: sidebar vertical ── */}
-      <nav className="hidden md:flex flex-col gap-5">
+      <nav className="hidden md:flex flex-col gap-4">
         {GROUPS.map((group, gi) => (
           <div key={gi}>
-            {group.label && (
-              <p className="mb-1 px-3 text-[10px] font-bold uppercase tracking-widest"
-                 style={{ color: 'var(--color-muted)' }}>
-                {group.label}
-              </p>
+            {group.label ? (
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <span
+                  className="h-px flex-1"
+                  style={{ background: 'var(--color-border)' }}
+                />
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-widest px-1"
+                  style={{ color: 'var(--color-accent)', opacity: 0.85 }}
+                >
+                  {group.label}
+                </span>
+                <span
+                  className="h-px flex-1"
+                  style={{ background: 'var(--color-border)' }}
+                />
+              </div>
+            ) : (
+              gi > 0 && <div className="h-px mb-2" style={{ background: 'var(--color-border)' }} />
             )}
             <div className="flex flex-col gap-0.5">
               {group.items.map((l) => {
