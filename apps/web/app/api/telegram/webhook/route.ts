@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@academia/db';
 import { callAI } from '@/lib/ai';
 
-const TOKEN   = process.env.TELEGRAM_BOT_TOKEN ?? '';
-const APP_URL = (process.env.APP_URL ?? 'https://academia-jrubio-web-saverio2023.vercel.app').replace(/\/$/, '');
-
 const CAT_ICON: Record<string, string> = {
   firmware: '💾', drivers: '🔧', frp: '🔓', root: '⚡',
   dump: '💿', tutoriales: '📖', herramientas: '🛠️', unlock: '🔑',
 };
 
+// Leídos en cada request para que funcionen tras agregar vars sin redeploy
+function getToken()  { return process.env.TELEGRAM_BOT_TOKEN ?? ''; }
+function getAppUrl() { return (process.env.APP_URL ?? 'https://academia-jrubio-web-nnl3.vercel.app').replace(/\/$/, ''); }
+
 async function tg(method: string, body: object) {
+  const TOKEN = getToken();
   if (!TOKEN) return null;
   const res = await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, {
     method: 'POST',
@@ -105,7 +107,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         title: '🔍 Escribe un modelo o marca...',
         description: 'Ejemplo: Samsung A55 FRP, Redmi Note 12 firmware',
         input_message_content: { message_text: 'Busca archivos en Academia J Rubio' },
-        reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${APP_URL}/archivos` }]] },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/archivos` }]] },
       }],
     });
   }
@@ -119,7 +121,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
         title: `Sin resultados para "${q}"`,
         description: 'Prueba con otra búsqueda o abre la biblioteca',
         input_message_content: { message_text: `Sin resultados para "${q}" en la biblioteca. Ver en: ${APP_URL}/archivos` },
-        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${APP_URL}/archivos` }]] },
+        reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca completa', url: `${getAppUrl()}/archivos` }]] },
       }],
     });
   }
@@ -132,7 +134,7 @@ async function handleInlineQuery(query: { id: string; query: string }) {
       message_text: `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''}\n${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · <i>${f.category}</i>`,
       parse_mode: 'HTML',
     },
-    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] },
+    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] },
   }));
 
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
@@ -159,7 +161,7 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
     const text = `🤖 ${reply}${filesText}`;
 
     await sendMessage(chatId, text, {
-      reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] },
+      reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Error desconocido';
@@ -169,7 +171,7 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
       if (files.length) {
         await sendMessage(chatId,
           `🔍 Resultados para <b>${query}</b>:\n` + formatFiles(files),
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${APP_URL}/archivos` }]] } },
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/archivos` }]] } },
         );
       } else {
         await sendMessage(chatId, `Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`);
@@ -198,7 +200,7 @@ async function handleMessage(msg: { chat: { id: number; type: string }; from?: {
       '🔍 <b>/buscar</b> &lt;texto&gt; — busca cualquier archivo\n' +
       '💾 <b>/mifirmware</b> &lt;modelo&gt; — busca firmwares\n\n' +
       '<i>También escribe @este_bot en cualquier chat para buscar inline.</i>',
-      { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${APP_URL}/archivos` }]] } },
+      { reply_markup: { inline_keyboard: [[{ text: '📁 Abrir biblioteca', url: `${getAppUrl()}/archivos` }]] } },
     );
   }
 
