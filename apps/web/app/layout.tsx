@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { NewFileTicker } from '@/components/new-file-ticker';
 import { PingTracker } from '@/components/ping-tracker';
+import { SupportButton } from '@/components/support-button';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <NewFileTicker />
         <PingTracker />
         {children}
+        <SupportButton />
       </body>
     </html>
   );
