@@ -51,6 +51,12 @@ export async function TopNav() {
                 💬 Comunidad
               </Link>
               <Link
+                href="/live"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 px-4 py-1.5 font-semibold transition-all"
+              >
+                📡 Live
+              </Link>
+              <Link
                 href="/academia"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-4 py-1.5 font-semibold transition-all"
               >
@@ -61,6 +67,12 @@ export async function TopNav() {
             <>
               <a href="#beneficios" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2">Beneficios</a>
               <a href="#planes" className="text-[var(--color-muted)] hover:text-[var(--color-fg)] transition-colors px-2">Planes</a>
+              <Link
+                href="/live"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 px-4 py-1.5 font-semibold transition-all"
+              >
+                📡 Live
+              </Link>
               <Link
                 href="/academia"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] text-white px-4 py-1.5 font-semibold transition-all"

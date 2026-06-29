@@ -75,6 +75,13 @@ export function MobileMenu({ logged, role }: MobileMenuProps) {
                 💬 Comunidad
               </Link>
               <Link
+                href="/live"
+                onClick={close}
+                className="rounded-lg px-3 py-3 text-sm font-semibold text-red-400 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 transition-colors"
+              >
+                📡 Live
+              </Link>
+              <Link
                 href="/academia"
                 onClick={close}
                 className="rounded-lg px-3 py-3 text-sm font-semibold text-white bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] transition-colors"
@@ -114,6 +121,13 @@ export function MobileMenu({ logged, role }: MobileMenuProps) {
               >
                 Planes
               </a>
+              <Link
+                href="/live"
+                onClick={close}
+                className="rounded-lg px-3 py-3 text-sm font-medium text-red-400 hover:bg-[var(--color-card)] transition-colors"
+              >
+                📡 Live
+              </Link>
               <Link
                 href="/academia"
                 onClick={close}

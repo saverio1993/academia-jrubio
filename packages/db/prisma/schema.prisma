@@ -627,6 +627,16 @@ model PostAttachment {
 
 // ---------- IA CONFIGURACIÓN (Fase 2) ----------
 
+model LiveSession {
+  id          String    @id @default(cuid())
+  title       String
+  description String    @default("") @db.Text
+  isLive      Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime  @default(now())
+}
+
 model AIConfig {
   id           String   @id @default("default")
   provider     String   @default("minimax")

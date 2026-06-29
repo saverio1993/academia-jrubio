@@ -25,6 +25,7 @@ const GROUPS = [
       { href: '/admin/archivos',  label: 'Archivos' },
       { href: '/admin/cursos',    label: 'Cursos' },
       { href: '/admin/comunidad', label: 'Comunidad' },
+      { href: '/admin/live',      label: 'Live' },
     ],
   },
   {

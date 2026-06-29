@@ -8,6 +8,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { FilesModule } from './files/files.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { LiveModule } from './live/live.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { TelegramModule } from './telegram/telegram.module';
     WebhooksModule,
     FilesModule,
     TelegramModule,
+    LiveModule,
   ],
   controllers: [HealthController],
 })
