@@ -51,9 +51,9 @@ export function TgInit() {
     signIn('telegram', { initData, redirect: false }).then((res) => {
       if (res?.ok) {
         router.refresh();
-      } else {
-        router.push('/tg/vincular');
       }
+      // Si no está vinculado, quedarse en la página actual (no forzar vincular)
+      // El usuario puede vincular desde /tg si quiere acceso completo
     });
   }
 
