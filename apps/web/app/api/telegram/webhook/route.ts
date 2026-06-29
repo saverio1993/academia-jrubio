@@ -138,10 +138,25 @@ async function handleInlineQuery(query: { id: string; query: string }) {
       message_text: `${CAT_ICON[f.category] ?? '📄'} <b>${f.title}</b>${f.isPremium ? ' 🔒' : ''}\n${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''} · <i>${f.category}</i>`,
       parse_mode: 'HTML',
     },
-    reply_markup: { inline_keyboard: [[{ text: '📁 Ver en Academia', url: `${getAppUrl()}/tg/archivos` }]] },
+    reply_markup: { inline_keyboard: [[{ text: '📁 Ver archivo', url: `${getAppUrl()}/tg/archivos?q=${encodeURIComponent(f.title)}` }]] },
   }));
 
   return tg('answerInlineQuery', { inline_query_id: query.id, results, cache_time: 10 });
+}
+
+// Teclado con un botón por archivo (link directo) + botón "Ver todos"
+function buildFileKeyboard(files: Awaited<ReturnType<typeof searchFiles>>, query: string, categoryFilter?: string) {
+  const base = getAppUrl();
+  const rows = files.slice(0, 5).map(f => {
+    const icon  = CAT_ICON[f.category] ?? '📄';
+    const lock  = f.isPremium ? ' 🔒' : '';
+    const label = `${icon} ${f.title.slice(0, 35)}${lock}`;
+    const url   = `${base}/tg/archivos?q=${encodeURIComponent(f.title)}`;
+    return [{ text: label, url }];
+  });
+  const allUrl = `${base}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
+  rows.push([{ text: '📁 Ver todos los resultados', url: allUrl }]);
+  return { inline_keyboard: rows };
 }
 
 // ── Búsqueda con IA + fallback a BD ──────────────────────────────────────────
@@ -155,26 +170,29 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
     ]);
 
     const reply = await callAI({ query, context, userId: `tg_${chatId}` });
-    const text  = `🤖 ${reply}${formatFiles(files)}`;
 
-    const searchUrl = `${getAppUrl()}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
-    await sendMessage(chatId, text, {
-      reply_markup: { inline_keyboard: [[{ text: '📁 Ver resultados', url: searchUrl }]] },
+    await sendMessage(chatId, `🤖 ${reply}`, {
+      reply_markup: buildFileKeyboard(files, query, categoryFilter),
     });
   } catch (err) {
     console.error('[telegram/handleAIQuery]', err);
     try {
-      const files = await searchFiles(query, 6, categoryFilter);
-      const searchUrl = `${getAppUrl()}/tg/archivos?q=${encodeURIComponent(query)}${categoryFilter ? `&cat=${categoryFilter}` : ''}`;
+      const files = await searchFiles(query, 5, categoryFilter);
       if (files.length) {
-        await sendMessage(chatId,
-          `🔍 <b>Resultados para "${query}":</b>${formatFiles(files)}`,
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver todos', url: searchUrl }]] } },
-        );
+        const text = `🔍 <b>Resultados para "${query}":</b>\n` +
+          files.map(f => {
+            const icon = CAT_ICON[f.category] ?? '📄';
+            const lock = f.isPremium ? ' 🔒' : '';
+            return `${icon} ${f.title}${lock} — ${f.brand ?? ''}${f.model ? ` · ${f.model}` : ''}`;
+          }).join('\n');
+        await sendMessage(chatId, text, {
+          reply_markup: buildFileKeyboard(files, query, categoryFilter),
+        });
       } else {
+        const allUrl = `${getAppUrl()}/tg/archivos`;
         await sendMessage(chatId,
           `🔍 Sin resultados para <b>${query}</b>. Prueba con otra búsqueda.`,
-          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: `${getAppUrl()}/tg/archivos` }]] } },
+          { reply_markup: { inline_keyboard: [[{ text: '📁 Ver biblioteca', url: allUrl }]] } },
         );
       }
     } catch (e2) {
