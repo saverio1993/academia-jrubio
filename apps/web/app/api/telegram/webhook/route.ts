@@ -180,9 +180,15 @@ async function handleAIQuery(chatId: number, query: string, categoryFilter?: str
   }
 }
 
-async function handleMessage(msg: { chat: { id: number }; from?: { id: number; first_name: string }; text?: string }) {
-  const text   = (msg.text ?? '').trim();
+async function handleMessage(msg: { chat: { id: number; type: string }; from?: { id: number; first_name: string }; text?: string }) {
+  // En grupos los comandos llegan como /buscar@NombreBot — quitar el @username
+  const raw    = (msg.text ?? '').trim();
+  const text   = raw.replace(/@\w+/g, '').trim();
   const chatId = msg.chat.id;
+  const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
+
+  // En grupos solo responder a comandos (que empiezan con /)
+  if (isGroup && !text.startsWith('/')) return;
 
   if (text === '/start') {
     const name = msg.from?.first_name ?? 'técnico';
