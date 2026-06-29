@@ -17,6 +17,7 @@ const LINKS = [
   { href: '/admin/cupones',  label: 'Cupones' },
   { href: '/admin/stats',     label: 'Estadísticas' },
   { href: '/admin/comunidad', label: 'Comunidad' },
+  { href: '/admin/bot',       label: '🤖 Bot Telegram' },
 ];
 
 export function Sidebar() {
