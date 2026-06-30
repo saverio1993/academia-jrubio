@@ -11,7 +11,12 @@ import {
   type LocalVideoTrack,
   type LocalAudioTrack,
   type RemoteParticipant,
+  DataPacket_Kind,
 } from 'livekit-client';
+
+interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
+const enc = new TextEncoder();
+const dec = new TextDecoder();
 
 type Status = 'idle' | 'live' | 'error';
 type Resolution = '1080p' | '720p' | '480p' | '360p';
@@ -37,10 +42,15 @@ export function LiveBroadcaster() {
   const [viewers,     setViewers]     = useState(0);
   const [error,       setError]       = useState('');
 
-  const [micOn,    setMicOn]    = useState(true);
-  const [camOn,    setCamOn]    = useState(true);
-  const [sharing,  setSharing]  = useState(false);
-  const [duration, setDuration] = useState(0);
+  const [micOn,      setMicOn]      = useState(true);
+  const [camOn,      setCamOn]      = useState(true);
+  const [sharing,    setSharing]    = useState(false);
+  const [duration,   setDuration]   = useState(0);
+  const [msgs,       setMsgs]       = useState<ChatMsg[]>([]);
+  const [chatInput,  setChatInput]  = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
   // Temporizador de duración
   useEffect(() => {
@@ -84,6 +94,13 @@ export function LiveBroadcaster() {
 
       room.on(RoomEvent.ParticipantConnected,    (_p: RemoteParticipant) => setViewers(v => v + 1));
       room.on(RoomEvent.ParticipantDisconnected, (_p: RemoteParticipant) => setViewers(v => Math.max(0, v - 1)));
+
+      room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+        try {
+          const msg = JSON.parse(dec.decode(payload));
+          if (msg.type === 'chat') setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.text, ts: msg.ts }]);
+        } catch {}
+      });
 
       await room.connect(url, token);
       await room.localParticipant.publishTrack(videoTrack);
@@ -164,6 +181,15 @@ export function LiveBroadcaster() {
         });
       } catch {}
     }
+  }
+
+  async function sendChat() {
+    const text = chatInput.trim();
+    if (!text || !roomRef.current) return;
+    const payload = enc.encode(JSON.stringify({ type: 'chat', name: 'Admin 🎙', text, ts: Date.now(), broadcaster: true }));
+    await roomRef.current.localParticipant.publishData(payload, { reliable: true });
+    setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: 'Admin 🎙', text, ts: Date.now(), broadcaster: true }]);
+    setChatInput('');
   }
 
   useEffect(() => () => { stopLive(); }, []);
@@ -299,6 +325,46 @@ export function LiveBroadcaster() {
           <p className="text-center text-xs mt-3" style={{ color: 'var(--color-muted)' }}>
             Los espectadores ven tu stream en tiempo real en <b>/live</b>
           </p>
+        </div>
+      )}
+
+      {/* ── Chat (visible durante el live) ── */}
+      {status === 'live' && (
+        <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
+          <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
+            <span className="text-sm font-bold">💬 Chat en vivo</span>
+            {msgs.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-border)', color: 'var(--color-muted)' }}>{msgs.length}</span>}
+          </div>
+          <div className="h-48 overflow-y-auto px-4 py-3 space-y-2 flex flex-col">
+            {msgs.length === 0 && (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>Los mensajes del chat aparecerán aquí</p>
+              </div>
+            )}
+            {msgs.map(m => (
+              <div key={m.id} className="flex gap-2 text-sm">
+                <span className={`font-bold shrink-0 ${m.broadcaster ? 'text-[var(--color-accent)]' : ''}`}>{m.name}:</span>
+                <span style={{ color: 'var(--color-fg)' }}>{m.text}</span>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="flex gap-2 px-4 py-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              placeholder="Responder al chat..."
+              maxLength={200}
+              className="flex-1 rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }}
+            />
+            <button onClick={sendChat} disabled={!chatInput.trim()}
+              className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
+              style={{ background: 'var(--color-accent)' }}>
+              Enviar
+            </button>
+          </div>
         </div>
       )}
 
