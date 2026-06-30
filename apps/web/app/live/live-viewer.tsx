@@ -50,24 +50,39 @@ export function LiveViewer() {
   const [chatName,    setChatName]    = useState('');
   const [nameSet,     setNameSet]     = useState(false);
 
-  /* ── auto-hide controles ── */
+  /* ── auto-hide controles (solo en fullscreen) ── */
   const resetHide = useCallback(() => {
     setShowCtrl(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = setTimeout(() => setShowCtrl(false), 3500);
+    // Solo ocultar si estamos en fullscreen; en modo ventana siempre visibles
+    if (document.fullscreenElement) {
+      hideTimer.current = setTimeout(() => setShowCtrl(false), 3500);
+    }
   }, []);
 
-  useEffect(() => { resetHide(); return () => { if (hideTimer.current) clearTimeout(hideTimer.current); }; }, [resetHide]);
+  useEffect(() => {
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+  }, []);
 
   /* ── scroll chat al final ── */
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
   /* ── fullscreen listener ── */
   useEffect(() => {
-    const fn = () => setFullscreen(Boolean(document.fullscreenElement));
+    const fn = () => {
+      const isFull = Boolean(document.fullscreenElement);
+      setFullscreen(isFull);
+      // Al salir del fullscreen: mostrar controles y cancelar timer
+      if (!isFull) {
+        if (hideTimer.current) clearTimeout(hideTimer.current);
+        setShowCtrl(true);
+      } else {
+        resetHide();
+      }
+    };
     document.addEventListener('fullscreenchange', fn);
     return () => document.removeEventListener('fullscreenchange', fn);
-  }, []);
+  }, [resetHide]);
 
   /* ── LiveKit conexión ── */
   useEffect(() => {
@@ -132,10 +147,10 @@ export function LiveViewer() {
     setQuality(q); setShowQuality(false);
     if (pubRef.current) pubRef.current.setVideoQuality(QUALITY_MAP[q]);
   }
-  async function toggleFullscreen() {
+  const toggleFullscreen = useCallback(async () => {
     if (!document.fullscreenElement) await containerRef.current?.requestFullscreen().catch(() => null);
     else await document.exitFullscreen().catch(() => null);
-  }
+  }, []);
   async function togglePip() {
     const v = videoRef.current; if (!v) return;
     if (document.pictureInPictureElement) await document.exitPictureInPicture().catch(() => null);
@@ -154,7 +169,7 @@ export function LiveViewer() {
     };
     window.addEventListener('keydown', fn);
     return () => window.removeEventListener('keydown', fn);
-  });
+  }, [toggleFullscreen]);
 
   /* ── chat ── */
   async function sendChat() {
