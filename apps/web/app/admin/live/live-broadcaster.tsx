@@ -13,6 +13,7 @@ import {
   type LocalVideoTrack,
   type LocalAudioTrack,
   type RemoteParticipant,
+  type VideoCodec,
 } from 'livekit-client';
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
@@ -82,7 +83,6 @@ export function LiveBroadcaster() {
 
       const { token, url } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
 
-      // Preset oficial de LiveKit con resolución y bitrate correctos
       const preset = PRESET_MAP[resolution];
       const [videoTrack, audioTrack] = await Promise.all([
         createLocalVideoTrack(preset.resolution),
@@ -91,10 +91,15 @@ export function LiveBroadcaster() {
       camRef.current = videoTrack;
       micRef.current = audioTrack;
 
+      // Hint al encoder del navegador: optimizar para contenido con movimiento normal
+      if (videoTrack.mediaStreamTrack) {
+        (videoTrack.mediaStreamTrack as MediaStreamTrack & { contentHint: string }).contentHint = 'motion';
+      }
+
       if (videoRef.current) videoTrack.attach(videoRef.current);
 
-      // dynacast=true: solo envía la capa que cada viewer necesita (ahorra CPU/ancho)
-      const room = new Room({ dynacast: true });
+      // simulcast:false → un solo stream, el CPU solo codifica UNA vez en vez de 3
+      const room = new Room({ dynacast: false });
       roomRef.current = room;
 
       room.on(RoomEvent.ParticipantConnected,    (_p: RemoteParticipant) => setViewers(v => v + 1));
@@ -109,13 +114,17 @@ export function LiveBroadcaster() {
 
       await room.connect(url, token);
 
-      // Publicar con encoding explícito + capas simulcast
+      // H264 usa el encoder por hardware del GPU/CPU (mucho menos lag que VP8 software)
+      // simulcast:false = UN solo stream en lugar de 3, drástica reducción de CPU
       await room.localParticipant.publishTrack(videoTrack, {
-        videoEncoding: preset.encoding,
-        simulcast: true,
-        videoSimulcastLayers: [preset, VideoPresets.h540, VideoPresets.h216],
+        videoEncoding: {
+          maxBitrate: preset.encoding.maxBitrate,
+          maxFramerate: 25,        // 25fps en vez de 30 = 16% menos trabajo, imperceptible
+          priority: 'high',
+        },
+        simulcast: false,
+        videoCodec: 'h264',        // Hardware encoding en la mayoría de PCs/Macs
       });
-      // Audio alta calidad para escuchar bien sonidos del móvil
       await room.localParticipant.publishTrack(audioTrack, {
         audioPreset: AudioPresets.musicHighQuality,
       });
@@ -176,16 +185,27 @@ export function LiveBroadcaster() {
         screen.stop();
         screenRef.current = null;
       }
-      await room.localParticipant.publishTrack(cam);
+      await room.localParticipant.publishTrack(cam, {
+        videoEncoding: { maxBitrate: PRESET_MAP[resolution].encoding.maxBitrate, maxFramerate: 25, priority: 'high' },
+        simulcast: false,
+        videoCodec: 'h264',
+      });
       if (videoRef.current) cam.attach(videoRef.current);
       setSharing(false);
     } else {
-      // Compartir pantalla
+      // Compartir pantalla — 'detail' optimiza para texto/pantallas estáticas
       try {
         const [screenTrack] = await createLocalScreenTracks({ audio: false });
         screenRef.current = screenTrack as LocalVideoTrack;
+        if (screenRef.current.mediaStreamTrack) {
+          (screenRef.current.mediaStreamTrack as MediaStreamTrack & { contentHint: string }).contentHint = 'detail';
+        }
         await room.localParticipant.unpublishTrack(cam);
-        await room.localParticipant.publishTrack(screenRef.current);
+        await room.localParticipant.publishTrack(screenRef.current, {
+          videoEncoding: { maxBitrate: 3_000_000, maxFramerate: 15, priority: 'high' }, // 15fps es suficiente para pantallas
+          simulcast: false,
+          videoCodec: 'h264',
+        });
         if (videoRef.current) screenRef.current.attach(videoRef.current);
         setSharing(true);
 
