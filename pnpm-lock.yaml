@@ -120,6 +120,9 @@ importers:
       '@auth/prisma-adapter':
         specifier: ^2.7.4
         version: 2.11.2(@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3))
+      '@livekit/protocol':
+        specifier: ^1.46.6
+        version: 1.48.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1

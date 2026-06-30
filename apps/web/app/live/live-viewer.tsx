@@ -12,16 +12,17 @@ import {
 } from 'livekit-client';
 
 type Status = 'connecting' | 'waiting' | 'watching' | 'ended';
-type Quality = 'auto' | 'high' | 'medium' | 'low';
+type Quality = '1440p' | '1080p' | '720p';
 
 const QUALITY_MAP: Record<Quality, VideoQuality> = {
-  auto:   VideoQuality.HIGH,   // AUTO = siempre HIGH, LiveKit elige la capa
-  high:   VideoQuality.HIGH,
-  medium: VideoQuality.MEDIUM,
-  low:    VideoQuality.LOW,
+  '1440p': VideoQuality.HIGH,
+  '1080p': VideoQuality.MEDIUM,
+  '720p':  VideoQuality.LOW,
 };
 const QUALITY_LABELS: Record<Quality, string> = {
-  auto: 'Auto', high: 'Alta', medium: 'Media', low: 'Baja',
+  '1440p': '1440p',
+  '1080p': '1080p',
+  '720p':  '720p',
 };
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
@@ -41,7 +42,7 @@ export function LiveViewer() {
   const [paused,      setPaused]      = useState(false);
   const [muted,       setMuted]       = useState(false);
   const [volume,      setVolume]      = useState(1);
-  const [quality,     setQuality]     = useState<Quality>('auto');
+  const [quality,     setQuality]     = useState<Quality>('1440p');
   const [showQuality, setShowQuality] = useState(false);
   const [fullscreen,  setFullscreen]  = useState(false);
   const [showCtrl,    setShowCtrl]    = useState(true);
@@ -49,6 +50,7 @@ export function LiveViewer() {
   const [chatInput,   setChatInput]   = useState('');
   const [chatName,    setChatName]    = useState('');
   const [nameSet,     setNameSet]     = useState(false);
+  const [rxRes,       setRxRes]       = useState<string>('');
 
   /* ── auto-hide controles (solo en fullscreen) ── */
   const resetHide = useCallback(() => {
@@ -99,9 +101,16 @@ export function LiveViewer() {
       if (track.kind === Track.Kind.Video && videoRef.current) {
         track.attach(videoRef.current);
         pubRef.current = pub;
-        // Pedir siempre la máxima calidad disponible
         pub.setVideoQuality(VideoQuality.HIGH);
         setStatus('watching');
+
+        // Detectar resolución real recibida
+        const readRes = () => {
+          const v = videoRef.current;
+          if (v && v.videoWidth > 0) setRxRes(`${v.videoWidth}×${v.videoHeight}`);
+        };
+        videoRef.current.addEventListener('loadedmetadata', readRes);
+        videoRef.current.addEventListener('resize', readRes);
       }
       if (track.kind === Track.Kind.Audio && videoRef.current) track.attach(videoRef.current);
     });
@@ -196,6 +205,11 @@ export function LiveViewer() {
           {watching && (
             <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white bg-red-600">
               <span className="w-2 h-2 rounded-full bg-white animate-pulse" /> EN VIVO
+            </span>
+          )}
+          {watching && rxRes && (
+            <span className="text-xs font-mono px-2 py-0.5 rounded border" style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted)' }}>
+              {rxRes}
             </span>
           )}
           {status === 'waiting' && (

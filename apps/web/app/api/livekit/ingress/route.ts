@@ -1,7 +1,15 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { prisma } from '@academia/db';
-import { IngressClient, IngressInput } from 'livekit-server-sdk';
+import {
+  IngressClient,
+  IngressInput,
+  IngressVideoOptions,
+  IngressVideoEncodingOptions,
+  IngressAudioOptions,
+  IngressAudioEncodingOptions,
+} from 'livekit-server-sdk';
+import { VideoLayer, VideoQuality, VideoCodec, AudioCodec } from '@livekit/protocol';
 
 const ROOM = 'academia-live';
 
@@ -26,7 +34,31 @@ export async function POST() {
     roomName:            ROOM,
     participantIdentity: 'obs-broadcaster',
     participantName:     'OBS',
-    bypassTranscoding:   true, // No re-encodificar, pasar el stream de OBS tal cual
+    // Transcodificación explícita con capas 1440p / 1080p / 720p
+    video: new IngressVideoOptions({
+      encodingOptions: {
+        case: 'options',
+        value: new IngressVideoEncodingOptions({
+          videoCodec: VideoCodec.H264_HIGH,
+          frameRate:  60,
+          layers: [
+            new VideoLayer({ quality: VideoQuality.HIGH,   width: 2560, height: 1440, bitrate: 30_000_000 }),
+            new VideoLayer({ quality: VideoQuality.MEDIUM, width: 1920, height: 1080, bitrate: 15_000_000 }),
+            new VideoLayer({ quality: VideoQuality.LOW,    width: 1280, height:  720, bitrate:  5_000_000 }),
+          ],
+        }),
+      },
+    }),
+    audio: new IngressAudioOptions({
+      encodingOptions: {
+        case: 'options',
+        value: new IngressAudioEncodingOptions({
+          audioCodec: AudioCodec.OPUS,
+          bitrate:    256_000,
+          channels:   2,
+        }),
+      },
+    }),
   });
 
   // Guardar ingressId en la sesión activa

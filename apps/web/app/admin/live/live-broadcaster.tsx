@@ -7,6 +7,7 @@ import {
   LocalVideoTrack,
   LocalAudioTrack,
   AudioPresets,
+  VideoPresets,
   createLocalAudioTrack,
   type RemoteParticipant,
 } from 'livekit-client';
@@ -305,10 +306,13 @@ export function LiveBroadcaster() {
       });
 
       await room.connect(url, token);
+      // Simulcast con 3 capas: la fuente capturada a máxima calidad + 1080p + 720p
+      // adaptiveStream:false en el viewer asegura que siempre reciba la capa HIGH
       await room.localParticipant.publishTrack(lkVideoTrack, {
-        videoEncoding: { maxBitrate: res.bitrate, maxFramerate: res.fps, priority: 'high' },
-        simulcast: false,
+        simulcast: true,
         videoCodec: 'h264',
+        videoEncoding: { maxBitrate: res.bitrate, maxFramerate: res.fps, priority: 'high' },
+        videoSimulcastLayers: [VideoPresets.h1080, VideoPresets.h720],
       });
       await room.localParticipant.publishTrack(audioTrack, {
         audioPreset: AudioPresets.musicHighQuality,
