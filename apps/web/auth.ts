@@ -23,18 +23,6 @@ async function uniqueUsername(base: string, excludeId?: string): Promise<string>
   }
 }
 
-/* Cookies OAuth: deben sobrevivir el redirect chain app→Google→app.
-   iOS Safari (ITP) corrompe o descarta cookies con SameSite=Lax al pasar
-   por un dominio de tracking conocido (google.com).
-   Con SameSite=None;Secure las enviamos en todos los contextos de navegación. */
-const oauthCookieOpts = {
-  httpOnly: true,
-  sameSite: 'none' as const,
-  secure: true,
-  path: '/',
-  maxAge: 60 * 15, // 15 minutos — suficiente para completar el OAuth
-};
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'database' },
@@ -46,31 +34,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     warn(code) { console.warn('[auth][warn]', code); },
   },
-  cookies: {
-    state: {
-      name: '__Secure-authjs.state',
-      options: oauthCookieOpts,
-    },
-    pkceCodeVerifier: {
-      name: '__Secure-authjs.pkce.code_verifier',
-      options: oauthCookieOpts,
-    },
-    nonce: {
-      name: '__Secure-authjs.nonce',
-      options: oauthCookieOpts,
-    },
-    callbackUrl: {
-      name: '__Secure-authjs.callback-url',
-      options: oauthCookieOpts,
-    },
-  },
   providers: [
     Google({
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
       allowDangerousEmailAccountLinking: true,
-      // PKCE no necesario con clientSecret; evita el bug de iOS con cookies PKCE
-      checks: ['state'],
+      // iOS Safari pierde las cookies de estado y PKCE durante el redirect
+      // app→Google→app. Con clientSecret el intercambio ocurre en el servidor
+      // (cliente confidencial), por lo que PKCE y state no son necesarios.
+      checks: [],
     }),
     Credentials({
       credentials: {
