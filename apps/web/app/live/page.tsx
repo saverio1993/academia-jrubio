@@ -6,8 +6,8 @@ export default function LivePage() {
     <>
       <TopNav />
       <main className="min-h-screen bg-[var(--color-bg)]">
-        <div className="mx-auto max-w-5xl px-4 py-8">
-          <h1 className="text-2xl font-bold mb-6">Transmisión en vivo</h1>
+        <div className="px-4 py-8">
+          <h1 className="text-2xl font-bold mb-4">Transmisión en vivo</h1>
           <LiveViewer />
         </div>
       </main>
