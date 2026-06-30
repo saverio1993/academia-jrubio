@@ -45,3 +45,6 @@ coverage/
 /packages/db/*.js
 .claude/settings.local.json
 _tmp_*
+
+.vercel
+.env*

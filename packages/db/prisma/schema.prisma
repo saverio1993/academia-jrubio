@@ -632,6 +632,7 @@ model LiveSession {
   title       String
   description String    @default("") @db.Text
   isLive      Boolean   @default(false)
+  ingressId   String?   // LiveKit Ingress ID para modo OBS/RTMP
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
   createdAt   DateTime  @default(now())

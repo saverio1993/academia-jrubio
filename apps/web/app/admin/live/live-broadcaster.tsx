@@ -16,7 +16,7 @@ const enc = new TextEncoder();
 const dec = new TextDecoder();
 
 type Status   = 'idle' | 'live' | 'error';
-type SrcMode  = 'camera' | 'screen' | 'both';
+type SrcMode  = 'camera' | 'screen' | 'both' | 'obs';
 type Resolution = '2160p' | '1440p' | '1080p' | '720p' | '480p' | '360p';
 
 const RES = {
@@ -58,6 +58,7 @@ export function LiveBroadcaster() {
   const [chatInput,  setChatInput]  = useState('');
   const [showGpu,    setShowGpu]    = useState(false);
   const [trackInfo,  setTrackInfo]  = useState<string>('');
+  const [obsCreds,   setObsCreds]   = useState<{ rtmpUrl: string; streamKey: string } | null>(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
@@ -166,6 +167,16 @@ export function LiveBroadcaster() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), description: description.trim() }),
       });
+
+      /* ── Modo OBS: solo crear el ingress RTMP, no capturar cámara ── */
+      if (srcMode === 'obs') {
+        const data = await fetch('/api/livekit/ingress', { method: 'POST' }).then(r => r.json());
+        if (data.error) throw new Error(data.error);
+        setObsCreds({ rtmpUrl: data.rtmpUrl, streamKey: data.streamKey });
+        setStatus('live');
+        setDuration(0);
+        return;
+      }
 
       const { token, url } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
       const res = RES[resolution];
@@ -335,6 +346,7 @@ export function LiveBroadcaster() {
     roomRef.current = null;
 
     await fetch('/api/livekit/stop', { method: 'POST' }).catch(() => null);
+    setObsCreds(null);
     setStatus('idle');
     setViewers(0);
     setDuration(0);
@@ -399,18 +411,20 @@ export function LiveBroadcaster() {
       {/* Controles durante el live */}
       {status === 'live' && (
         <div className="max-w-2xl mx-auto flex items-center justify-center gap-3">
-          {/* Micrófono */}
-          <button onClick={toggleMic}
-            className={`flex flex-col items-center gap-1 rounded-2xl px-5 py-3 text-xs font-medium border transition-all ${
-              micOn ? 'bg-[var(--color-card)] border-[var(--color-border)] hover:border-[var(--color-accent)]'
-                    : 'bg-red-600/20 border-red-500/50 text-red-400'
-            }`}>
-            {micOn
-              ? <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
-              : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.34 3 3 3 .23 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V20c0 .55.45 1 1 1s1-.45 1-1v-2.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>
-            }
-            {micOn ? 'Micro' : 'Silenciado'}
-          </button>
+          {/* Micrófono — solo en modos no-OBS */}
+          {srcMode !== 'obs' && (
+            <button onClick={toggleMic}
+              className={`flex flex-col items-center gap-1 rounded-2xl px-5 py-3 text-xs font-medium border transition-all ${
+                micOn ? 'bg-[var(--color-card)] border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                      : 'bg-red-600/20 border-red-500/50 text-red-400'
+              }`}>
+              {micOn
+                ? <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+                : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.34 3 3 3 .23 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V20c0 .55.45 1 1 1s1-.45 1-1v-2.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>
+              }
+              {micOn ? 'Micro' : 'Silenciado'}
+            </button>
+          )}
 
           {/* Terminar */}
           <button onClick={stopLive}
@@ -421,8 +435,62 @@ export function LiveBroadcaster() {
         </div>
       )}
 
-      {/* Chat durante el live */}
-      {status === 'live' && (
+      {/* Panel de credenciales OBS */}
+      {status === 'live' && srcMode === 'obs' && obsCreds && (
+        <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden space-y-0"
+             style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
+          <div className="px-4 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--color-border)' }}>
+            <span className="text-sm font-bold">🎬 Credenciales RTMP para OBS</span>
+          </div>
+          <div className="px-4 py-4 space-y-3">
+            {/* URL del servidor */}
+            <div>
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--color-muted)' }}>Servidor (Server URL)</p>
+              <div className="flex gap-2">
+                <code className="flex-1 rounded-lg px-3 py-2 text-xs font-mono truncate"
+                      style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                  {obsCreds.rtmpUrl}
+                </code>
+                <button onClick={() => navigator.clipboard.writeText(obsCreds.rtmpUrl)}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium border hover:opacity-80 transition-opacity"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)' }}>
+                  Copiar
+                </button>
+              </div>
+            </div>
+            {/* Clave de stream */}
+            <div>
+              <p className="text-xs font-medium mb-1" style={{ color: 'var(--color-muted)' }}>Clave de stream (Stream Key)</p>
+              <div className="flex gap-2">
+                <code className="flex-1 rounded-lg px-3 py-2 text-xs font-mono truncate"
+                      style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                  {obsCreds.streamKey}
+                </code>
+                <button onClick={() => navigator.clipboard.writeText(obsCreds.streamKey)}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium border hover:opacity-80 transition-opacity"
+                  style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg)' }}>
+                  Copiar
+                </button>
+              </div>
+            </div>
+            {/* Guía */}
+            <div className="rounded-xl p-3 text-xs space-y-1" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+              <p className="font-bold mb-1">En OBS Studio:</p>
+              <ol className="space-y-0.5" style={{ color: 'var(--color-muted)' }}>
+                <li>1. Archivo → Configuración → Retransmisión</li>
+                <li>2. Servicio: <strong>Personalizado</strong></li>
+                <li>3. Servidor: pega la URL de arriba</li>
+                <li>4. Clave de retransmisión: pega la clave de arriba</li>
+                <li>5. Aplica → Iniciar transmisión en OBS</li>
+              </ol>
+              <p className="mt-2 text-yellow-500">Los viewers verán el stream en cuanto OBS empiece a transmitir.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat durante el live (solo modos no-OBS donde el broadcaster está conectado) */}
+      {status === 'live' && srcMode !== 'obs' && (
         <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden"
              style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
           <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
@@ -480,20 +548,21 @@ export function LiveBroadcaster() {
           {/* Fuente de video */}
           <div>
             <label className="block text-sm font-medium mb-2">Fuente de video</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {([
                 { id: 'camera', icon: '📷', label: 'Solo cámara' },
                 { id: 'screen', icon: '🖥', label: 'Solo pantalla' },
                 { id: 'both',   icon: '🎥', label: 'Pantalla + cámara' },
+                { id: 'obs',    icon: '🎬', label: 'OBS / Software externo' },
               ] as { id: SrcMode; icon: string; label: string }[]).map(opt => (
                 <button key={opt.id} onClick={() => setSrcMode(opt.id)}
-                  className={`flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 text-xs font-medium border transition-all ${
+                  className={`flex items-center gap-2 rounded-xl py-2.5 px-3 text-xs font-medium border transition-all ${
                     srcMode === opt.id
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                       : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
                   }`}>
-                  <span className="text-xl">{opt.icon}</span>
-                  {opt.label}
+                  <span className="text-lg shrink-0">{opt.icon}</span>
+                  <span>{opt.label}</span>
                 </button>
               ))}
             </div>
@@ -501,124 +570,115 @@ export function LiveBroadcaster() {
               {srcMode === 'camera' && 'Transmite tu cámara web.'}
               {srcMode === 'screen' && 'Comparte la pantalla de tu PC. No necesitas cámara.'}
               {srcMode === 'both'   && 'Pantalla completa con tu cámara en la esquina inferior derecha.'}
+              {srcMode === 'obs'    && 'La web te da la URL y clave RTMP. Las pegas en OBS y él envía el stream.'}
             </p>
           </div>
 
-          {/* Fuente de audio */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Fuente de audio</label>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { id: 'mic',  icon: '🎤', label: 'Solo micrófono',         desc: 'Solo tu voz' },
-                { id: 'mix',  icon: '🔊', label: 'Micro + audio escritorio', desc: srcMode === 'camera' ? 'No disponible en modo cámara' : 'Marca "Compartir audio" en el diálogo del navegador' },
-              ] as { id: 'mic'|'mix'; icon: string; label: string; desc: string }[]).map(opt => {
-                const disabled = opt.id === 'mix' && srcMode === 'camera';
-                return (
-                  <button key={opt.id}
-                    onClick={() => !disabled && setAudioSrc(opt.id)}
-                    disabled={disabled}
-                    className={`flex flex-col items-start gap-1 rounded-xl py-3 px-3 text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                      audioSrc === opt.id && !disabled
+          {/* Fuente de audio — oculto en modo OBS (lo gestiona OBS) */}
+          {srcMode !== 'obs' && (
+            <div>
+              <label className="block text-sm font-medium mb-2">Fuente de audio</label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { id: 'mic', icon: '🎤', label: 'Solo micrófono',          desc: 'Solo tu voz' },
+                  { id: 'mix', icon: '🔊', label: 'Micro + audio escritorio', desc: srcMode === 'camera' ? 'No disponible en modo cámara' : 'Marca "Compartir audio" en el diálogo del navegador' },
+                ] as { id: 'mic'|'mix'; icon: string; label: string; desc: string }[]).map(opt => {
+                  const disabled = opt.id === 'mix' && srcMode === 'camera';
+                  return (
+                    <button key={opt.id}
+                      onClick={() => !disabled && setAudioSrc(opt.id)}
+                      disabled={disabled}
+                      className={`flex flex-col items-start gap-1 rounded-xl py-3 px-3 text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                        audioSrc === opt.id && !disabled
+                          ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                          : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
+                      }`}>
+                      <span className="text-lg">{opt.icon} <span className="font-bold">{opt.label}</span></span>
+                      <span className="text-[10px] leading-tight">{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Calidad de envío — oculto en modo OBS (lo controla OBS) */}
+          {srcMode !== 'obs' && (
+            <div>
+              <label className="block text-sm font-medium mb-1">Calidad de envío</label>
+              <p className="text-xs mb-2" style={{ color: 'var(--color-muted)' }}>
+                La captura usa la resolución máxima disponible. Este ajuste controla el bitrate enviado.
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { id: '360p',  label: '360p',  sub: '2 Mbps'  },
+                  { id: '480p',  label: '480p',  sub: '4 Mbps'  },
+                  { id: '720p',  label: '720p',  sub: '10 Mbps' },
+                  { id: '1080p', label: '1080p', sub: '20 Mbps' },
+                  { id: '1440p', label: '2K',    sub: '35 Mbps' },
+                  { id: '2160p', label: '4K',    sub: '60 Mbps' },
+                ] as { id: Resolution; label: string; sub: string }[]).map(r => (
+                  <button key={r.id} onClick={() => setResolution(r.id)}
+                    className={`flex flex-col items-center rounded-xl py-2 px-1 text-xs font-bold border transition-all ${
+                      resolution === r.id
                         ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                         : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
                     }`}>
-                    <span className="text-lg">{opt.icon} <span className="font-bold">{opt.label}</span></span>
-                    <span className="text-[10px] leading-tight">{opt.desc}</span>
+                    <span>{r.label}</span>
+                    <span className="font-normal opacity-70">{r.sub}</span>
                   </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Calidad de envío (controla bitrate, la captura siempre usa el máximo) */}
-          <div>
-            <label className="block text-sm font-medium mb-1">Calidad de envío</label>
-            <p className="text-xs mb-2" style={{ color: 'var(--color-muted)' }}>
-              La captura siempre usa la resolución máxima disponible. Este ajuste controla el bitrate enviado.
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {([
-                { id: '360p',  label: '360p',  sub: '2 Mbps'  },
-                { id: '480p',  label: '480p',  sub: '4 Mbps'  },
-                { id: '720p',  label: '720p',  sub: '10 Mbps' },
-                { id: '1080p', label: '1080p', sub: '20 Mbps' },
-                { id: '1440p', label: '2K',    sub: '35 Mbps' },
-                { id: '2160p', label: '4K',    sub: '60 Mbps' },
-              ] as { id: Resolution; label: string; sub: string }[]).map(r => (
-                <button key={r.id} onClick={() => setResolution(r.id)}
-                  className={`flex flex-col items-center rounded-xl py-2 px-1 text-xs font-bold border transition-all ${
-                    resolution === r.id
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
-                      : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
-                  }`}>
-                  <span>{r.label}</span>
-                  <span className="font-normal opacity-70">{r.sub}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Panel GPU */}
-          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
-            <button onClick={() => setShowGpu(g => !g)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
-              style={{ background: 'var(--color-card)' }}>
-              <span className="flex items-center gap-2">
-                <span>⚡</span>
-                <span>Forzar GPU dedicada (reduce lag)</span>
-              </span>
-              <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{showGpu ? '▲' : '▼'}</span>
-            </button>
-
-            {showGpu && (
-              <div className="px-4 pb-4 pt-1 space-y-4 text-sm" style={{ background: 'var(--color-card)' }}>
-                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
-                  El navegador elige qué GPU usar. Para forzar tu GPU NVIDIA/AMD dedica, sigue uno de estos métodos:
-                </p>
-
-                {/* Método 1: Windows */}
-                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                  <p className="font-bold text-xs uppercase tracking-wide" style={{ color: 'var(--color-accent)' }}>Windows 11 / 10</p>
-                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                    <li>1. Click derecho en el escritorio → <strong>Configuración de pantalla</strong></li>
-                    <li>2. Desplázate hasta <strong>Gráficos</strong> (o busca "Configuración de gráficos")</li>
-                    <li>3. Haz clic en <strong>Examinar</strong> y añade <code>chrome.exe</code> o <code>msedge.exe</code></li>
-                    <li>4. Selecciona la app → <strong>Opciones</strong> → elige <strong>Alto rendimiento</strong></li>
-                    <li>5. <strong>Guarda y reinicia el navegador</strong></li>
-                  </ol>
-                </div>
-
-                {/* Método 2: NVIDIA */}
-                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                  <p className="font-bold text-xs uppercase tracking-wide text-green-500">Panel de control NVIDIA</p>
-                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                    <li>1. Click derecho en escritorio → <strong>Panel de control NVIDIA</strong></li>
-                    <li>2. Ve a <strong>Administrar configuración 3D</strong> → <strong>Configuración de programa</strong></li>
-                    <li>3. Añade <code>chrome.exe</code> o <code>msedge.exe</code></li>
-                    <li>4. Procesador preferido → <strong>Procesador NVIDIA de alto rendimiento</strong></li>
-                    <li>5. Aplica y reinicia el navegador</li>
-                  </ol>
-                </div>
-
-                {/* Verificar en Chrome */}
-                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
-                  <p className="font-bold text-xs uppercase tracking-wide text-blue-400">Verificar en Chrome/Edge</p>
-                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
-                    <li>1. Abre una pestaña nueva y escribe <code>chrome://gpu</code></li>
-                    <li>2. Busca <strong>"Video Encode"</strong> — debe decir <strong>Hardware accelerated</strong></li>
-                    <li>3. Si dice "Software only", ve a Configuración → Sistema → activa aceleración de hardware</li>
-                  </ol>
-                </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* Panel GPU — solo relevante fuera de OBS */}
+          {srcMode !== 'obs' && (
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
+              <button onClick={() => setShowGpu(g => !g)}
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
+                style={{ background: 'var(--color-card)' }}>
+                <span className="flex items-center gap-2"><span>⚡</span><span>Forzar GPU dedicada (reduce lag)</span></span>
+                <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{showGpu ? '▲' : '▼'}</span>
+              </button>
+              {showGpu && (
+                <div className="px-4 pb-4 pt-1 space-y-4 text-sm" style={{ background: 'var(--color-card)' }}>
+                  <p className="text-xs" style={{ color: 'var(--color-muted)' }}>Para forzar tu GPU NVIDIA/AMD dedicada:</p>
+                  <div className="rounded-xl p-3 space-y-1" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                    <p className="font-bold text-xs uppercase" style={{ color: 'var(--color-accent)' }}>Windows 11/10</p>
+                    <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                      <li>1. Click derecho escritorio → <strong>Configuración de pantalla → Gráficos</strong></li>
+                      <li>2. Añade <code>chrome.exe</code> → Opciones → <strong>Alto rendimiento</strong></li>
+                      <li>3. Guarda y reinicia el navegador</li>
+                    </ol>
+                  </div>
+                  <div className="rounded-xl p-3 space-y-1" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                    <p className="font-bold text-xs uppercase text-green-500">Panel NVIDIA</p>
+                    <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                      <li>1. <strong>Administrar configuración 3D → Configuración de programa</strong></li>
+                      <li>2. Añade <code>chrome.exe</code> → <strong>Procesador NVIDIA de alto rendimiento</strong></li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Nota OBS: no preview, controles en OBS */}
+          {srcMode === 'obs' && (
+            <div className="rounded-xl p-4 text-xs space-y-1" style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+              <p className="font-bold text-sm mb-2">🎬 Modo OBS</p>
+              <p style={{ color: 'var(--color-muted)' }}>Al iniciar recibirás la URL RTMP y la clave de stream para pegar en OBS Studio, Streamlabs u otro software.</p>
+              <p style={{ color: 'var(--color-muted)' }}>La resolución, bitrate y fps los controlas directamente en OBS.</p>
+            </div>
+          )}
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
           <button onClick={startLive}
             className="w-full rounded-xl py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95"
             style={{ background: '#ef4444' }}>
-            Iniciar transmisión
+            {srcMode === 'obs' ? 'Obtener credenciales RTMP' : 'Iniciar transmisión'}
           </button>
         </div>
       )}
