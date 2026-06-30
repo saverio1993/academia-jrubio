@@ -9,17 +9,16 @@ import {
   type RemoteTrack,
   type RemoteTrackPublication,
   ConnectionState,
-  DataPacket_Kind,
 } from 'livekit-client';
 
 type Status = 'connecting' | 'waiting' | 'watching' | 'ended';
 type Quality = 'auto' | 'high' | 'medium' | 'low';
 
-const QUALITY_MAP: Record<Quality, VideoQuality | undefined> = {
-  auto: undefined,
-  high: VideoQuality.HIGH,
+const QUALITY_MAP: Record<Quality, VideoQuality> = {
+  auto:   VideoQuality.HIGH,   // AUTO = siempre HIGH, LiveKit elige la capa
+  high:   VideoQuality.HIGH,
   medium: VideoQuality.MEDIUM,
-  low: VideoQuality.LOW,
+  low:    VideoQuality.LOW,
 };
 const QUALITY_LABELS: Record<Quality, string> = {
   auto: 'Auto', high: '720p', medium: '480p', low: '240p',
@@ -72,7 +71,8 @@ export function LiveViewer() {
 
   /* ── LiveKit conexión ── */
   useEffect(() => {
-    const room = new Room();
+    // adaptiveStream:false → no degrada la calidad según el tamaño del elemento
+    const room = new Room({ adaptiveStream: false, dynacast: false });
     roomRef.current = room;
 
     room.on(RoomEvent.ConnectionStateChanged, (s: ConnectionState) => {
@@ -84,6 +84,8 @@ export function LiveViewer() {
       if (track.kind === Track.Kind.Video && videoRef.current) {
         track.attach(videoRef.current);
         pubRef.current = pub;
+        // Pedir siempre la máxima calidad disponible
+        pub.setVideoQuality(VideoQuality.HIGH);
         setStatus('watching');
       }
       if (track.kind === Track.Kind.Audio && videoRef.current) track.attach(videoRef.current);
@@ -128,8 +130,7 @@ export function LiveViewer() {
   }
   function changeQuality(q: Quality) {
     setQuality(q); setShowQuality(false);
-    const qv = QUALITY_MAP[q];
-    if (pubRef.current && qv !== undefined) pubRef.current.setVideoQuality(qv);
+    if (pubRef.current) pubRef.current.setVideoQuality(QUALITY_MAP[q]);
   }
   async function toggleFullscreen() {
     if (!document.fullscreenElement) await containerRef.current?.requestFullscreen().catch(() => null);

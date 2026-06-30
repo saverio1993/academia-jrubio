@@ -5,13 +5,14 @@ import {
   Room,
   RoomEvent,
   Track,
+  VideoPresets,
+  AudioPresets,
   createLocalVideoTrack,
   createLocalAudioTrack,
   createLocalScreenTracks,
   type LocalVideoTrack,
   type LocalAudioTrack,
   type RemoteParticipant,
-  DataPacket_Kind,
 } from 'livekit-client';
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
@@ -21,12 +22,13 @@ const dec = new TextDecoder();
 type Status = 'idle' | 'live' | 'error';
 type Resolution = '1080p' | '720p' | '480p' | '360p';
 
-const RES_MAP: Record<Resolution, { width: number; height: number; frameRate: number }> = {
-  '1080p': { width: 1920, height: 1080, frameRate: 30 },
-  '720p':  { width: 1280, height: 720,  frameRate: 30 },
-  '480p':  { width: 854,  height: 480,  frameRate: 30 },
-  '360p':  { width: 640,  height: 360,  frameRate: 24 },
-};
+// Mapeo a los presets oficiales de LiveKit (resolución + bitrate correcto)
+const PRESET_MAP = {
+  '1080p': VideoPresets.h1080,
+  '720p':  VideoPresets.h720,
+  '480p':  VideoPresets.h480,
+  '360p':  VideoPresets.h360,
+} satisfies Record<Resolution, (typeof VideoPresets)[keyof typeof VideoPresets]>;
 
 export function LiveBroadcaster() {
   const videoRef    = useRef<HTMLVideoElement>(null);
@@ -80,16 +82,19 @@ export function LiveBroadcaster() {
 
       const { token, url } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
 
+      // Preset oficial de LiveKit con resolución y bitrate correctos
+      const preset = PRESET_MAP[resolution];
       const [videoTrack, audioTrack] = await Promise.all([
-        createLocalVideoTrack(RES_MAP[resolution]),
-        createLocalAudioTrack(),
+        createLocalVideoTrack(preset.resolution),
+        createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }),
       ]);
       camRef.current = videoTrack;
       micRef.current = audioTrack;
 
       if (videoRef.current) videoTrack.attach(videoRef.current);
 
-      const room = new Room();
+      // dynacast=true: solo envía la capa que cada viewer necesita (ahorra CPU/ancho)
+      const room = new Room({ dynacast: true });
       roomRef.current = room;
 
       room.on(RoomEvent.ParticipantConnected,    (_p: RemoteParticipant) => setViewers(v => v + 1));
@@ -103,8 +108,17 @@ export function LiveBroadcaster() {
       });
 
       await room.connect(url, token);
-      await room.localParticipant.publishTrack(videoTrack);
-      await room.localParticipant.publishTrack(audioTrack);
+
+      // Publicar con encoding explícito + capas simulcast
+      await room.localParticipant.publishTrack(videoTrack, {
+        videoEncoding: preset.encoding,
+        simulcast: true,
+        videoSimulcastLayers: [preset, VideoPresets.h540, VideoPresets.h216],
+      });
+      // Audio alta calidad para escuchar bien sonidos del móvil
+      await room.localParticipant.publishTrack(audioTrack, {
+        audioPreset: AudioPresets.musicHighQuality,
+      });
 
       setViewers(room.remoteParticipants.size);
       setStatus('live');
