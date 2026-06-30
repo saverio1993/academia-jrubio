@@ -14,10 +14,14 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (!process.env.LIVEKIT_API_KEY)    return NextResponse.json({ error: 'LIVEKIT_API_KEY no configurado en Vercel' }, { status: 500 });
+  if (!process.env.LIVEKIT_API_SECRET) return NextResponse.json({ error: 'LIVEKIT_API_SECRET no configurado en Vercel' }, { status: 500 });
+  if (!process.env.LIVEKIT_URL)        return NextResponse.json({ error: 'LIVEKIT_URL no configurado en Vercel' }, { status: 500 });
+
   try {
     const at = new AccessToken(
-      process.env.LIVEKIT_API_KEY!,
-      process.env.LIVEKIT_API_SECRET!,
+      process.env.LIVEKIT_API_KEY,
+      process.env.LIVEKIT_API_SECRET,
       {
         identity: role === 'broadcaster'
           ? 'admin'
