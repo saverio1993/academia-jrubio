@@ -17,9 +17,11 @@ const dec = new TextDecoder();
 
 type Status   = 'idle' | 'live' | 'error';
 type SrcMode  = 'camera' | 'screen' | 'both';
-type Resolution = '1080p' | '720p' | '480p' | '360p';
+type Resolution = '2160p' | '1440p' | '1080p' | '720p' | '480p' | '360p';
 
 const RES = {
+  '2160p': { w: 3840, h: 2160, fps: 30, bitrate: 60_000_000 },
+  '1440p': { w: 2560, h: 1440, fps: 30, bitrate: 35_000_000 },
   '1080p': { w: 1920, h: 1080, fps: 30, bitrate: 20_000_000 },
   '720p':  { w: 1280, h: 720,  fps: 30, bitrate: 10_000_000 },
   '480p':  { w: 854,  h: 480,  fps: 30, bitrate: 4_000_000  },
@@ -45,7 +47,7 @@ export function LiveBroadcaster() {
   const [status,     setStatus]     = useState<Status>('idle');
   const [srcMode,    setSrcMode]    = useState<SrcMode>('camera');
   const [audioSrc,   setAudioSrc]   = useState<'mic' | 'mix'>('mic');
-  const [resolution, setResolution] = useState<Resolution>('1080p');
+  const [resolution, setResolution] = useState<Resolution>('1440p');
   const [title,      setTitle]      = useState('');
   const [description,setDescription]= useState('');
   const [viewers,    setViewers]    = useState(0);
@@ -534,12 +536,14 @@ export function LiveBroadcaster() {
             <p className="text-xs mb-2" style={{ color: 'var(--color-muted)' }}>
               La captura siempre usa la resolución máxima disponible. Este ajuste controla el bitrate enviado.
             </p>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {([
                 { id: '360p',  label: '360p',  sub: '2 Mbps'  },
                 { id: '480p',  label: '480p',  sub: '4 Mbps'  },
                 { id: '720p',  label: '720p',  sub: '10 Mbps' },
                 { id: '1080p', label: '1080p', sub: '20 Mbps' },
+                { id: '1440p', label: '2K',    sub: '35 Mbps' },
+                { id: '2160p', label: '4K',    sub: '60 Mbps' },
               ] as { id: Resolution; label: string; sub: string }[]).map(r => (
                 <button key={r.id} onClick={() => setResolution(r.id)}
                   className={`flex flex-col items-center rounded-xl py-2 px-1 text-xs font-bold border transition-all ${
