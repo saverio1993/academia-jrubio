@@ -39,6 +39,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: process.env.AUTH_GOOGLE_ID!,
       clientSecret: process.env.AUTH_GOOGLE_SECRET!,
       allowDangerousEmailAccountLinking: true,
+      // PKCE provoca "could not be parsed" en iOS/móvil porque la cookie se pierde
+      // durante el redirect Google→app. Con clientSecret el PKCE no es necesario;
+      // el state check sigue protegiendo contra CSRF.
+      checks: ['state'],
     }),
     Credentials({
       credentials: {
