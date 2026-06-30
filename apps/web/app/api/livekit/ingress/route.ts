@@ -8,10 +8,17 @@ import {
   IngressVideoEncodingOptions,
   IngressAudioOptions,
   IngressAudioEncodingOptions,
+  VideoCodec,
+  AudioCodec,
 } from 'livekit-server-sdk';
-import { VideoLayer, VideoQuality, VideoCodec, AudioCodec } from '@livekit/protocol';
 
 const ROOM = 'academia-live';
+
+// VideoQuality enum no está re-exportado por livekit-server-sdk, usamos los valores numéricos
+// HIGH=2, MEDIUM=1, LOW=0  (from livekit.VideoQuality protobuf enum)
+const VQ_HIGH   = 2;
+const VQ_MEDIUM = 1;
+const VQ_LOW    = 0;
 
 function lkHttpUrl() {
   return process.env.LIVEKIT_URL!.replace(/^wss?:\/\//, 'https://');
@@ -34,18 +41,19 @@ export async function POST() {
     roomName:            ROOM,
     participantIdentity: 'obs-broadcaster',
     participantName:     'OBS',
-    // Transcodificación explícita con capas 1440p / 1080p / 720p
+    // Transcodificación explícita con 3 capas de simulcast: 1440p / 1080p / 720p
     video: new IngressVideoOptions({
       encodingOptions: {
         case: 'options',
         value: new IngressVideoEncodingOptions({
           videoCodec: VideoCodec.H264_HIGH,
           frameRate:  60,
+          // Los objetos planos son aceptados como PartialMessage<VideoLayer>
           layers: [
-            new VideoLayer({ quality: VideoQuality.HIGH,   width: 2560, height: 1440, bitrate: 30_000_000 }),
-            new VideoLayer({ quality: VideoQuality.MEDIUM, width: 1920, height: 1080, bitrate: 15_000_000 }),
-            new VideoLayer({ quality: VideoQuality.LOW,    width: 1280, height:  720, bitrate:  5_000_000 }),
-          ],
+            { quality: VQ_HIGH,   width: 2560, height: 1440, bitrate: 30_000_000 },
+            { quality: VQ_MEDIUM, width: 1920, height: 1080, bitrate: 15_000_000 },
+            { quality: VQ_LOW,    width: 1280, height:  720, bitrate:  5_000_000 },
+          ] as never[],
         }),
       },
     }),
