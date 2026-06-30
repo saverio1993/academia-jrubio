@@ -4,59 +4,58 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Room,
   RoomEvent,
-  Track,
-  VideoPresets,
+  LocalVideoTrack,
+  LocalAudioTrack,
   AudioPresets,
-  createLocalVideoTrack,
   createLocalAudioTrack,
   createLocalScreenTracks,
-  type LocalVideoTrack,
-  type LocalAudioTrack,
   type RemoteParticipant,
-  type VideoCodec,
 } from 'livekit-client';
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
 const enc = new TextEncoder();
 const dec = new TextDecoder();
 
-type Status = 'idle' | 'live' | 'error';
+type Status   = 'idle' | 'live' | 'error';
+type SrcMode  = 'camera' | 'screen' | 'both';
 type Resolution = '1080p' | '720p' | '480p' | '360p';
 
-// Resoluciones con bitrates altos para conexión de 1 Gbps
-// LiveKit default: 1080p=5Mbps, 720p=1.7Mbps — subimos a calidad broadcast
-const PRESET_MAP: Record<Resolution, { resolution: { width: number; height: number; frameRate: number }; encoding: { maxBitrate: number; maxFramerate: number } }> = {
-  '1080p': { resolution: { width: 1920, height: 1080, frameRate: 30 }, encoding: { maxBitrate: 20_000_000, maxFramerate: 30 } },
-  '720p':  { resolution: { width: 1280, height: 720,  frameRate: 30 }, encoding: { maxBitrate: 10_000_000, maxFramerate: 30 } },
-  '480p':  { resolution: { width: 854,  height: 480,  frameRate: 30 }, encoding: { maxBitrate: 4_000_000,  maxFramerate: 30 } },
-  '360p':  { resolution: { width: 640,  height: 360,  frameRate: 30 }, encoding: { maxBitrate: 2_000_000,  maxFramerate: 30 } },
+const RES = {
+  '1080p': { w: 1920, h: 1080, fps: 30, bitrate: 20_000_000 },
+  '720p':  { w: 1280, h: 720,  fps: 30, bitrate: 10_000_000 },
+  '480p':  { w: 854,  h: 480,  fps: 30, bitrate: 4_000_000  },
+  '360p':  { w: 640,  h: 360,  fps: 30, bitrate: 2_000_000  },
 };
 
 export function LiveBroadcaster() {
-  const videoRef    = useRef<HTMLVideoElement>(null);
-  const roomRef     = useRef<Room | null>(null);
-  const camRef      = useRef<LocalVideoTrack | null>(null);
-  const micRef      = useRef<LocalAudioTrack | null>(null);
-  const screenRef   = useRef<LocalVideoTrack | null>(null);
+  /* preview visible al usuario */
+  const previewRef    = useRef<HTMLVideoElement>(null);
+  /* videos ocultos para el composite */
+  const screenVidRef  = useRef<HTMLVideoElement>(null);
+  const camVidRef     = useRef<HTMLVideoElement>(null);
+  /* canvas para mezcla */
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const rafRef        = useRef<number | null>(null);
 
-  const [status,      setStatus]      = useState<Status>('idle');
-  const [title,       setTitle]       = useState('');
-  const [description, setDescription] = useState('');
-  const [resolution,  setResolution]  = useState<Resolution>('720p');
-  const [viewers,     setViewers]     = useState(0);
-  const [error,       setError]       = useState('');
+  const roomRef       = useRef<Room | null>(null);
+  const videoTrackRef = useRef<LocalVideoTrack | null>(null);
+  const micRef        = useRef<LocalAudioTrack | null>(null);
+  const chatEndRef    = useRef<HTMLDivElement>(null);
 
-  const [micOn,      setMicOn]      = useState(true);
-  const [camOn,      setCamOn]      = useState(true);
-  const [sharing,    setSharing]    = useState(false);
+  const [status,     setStatus]     = useState<Status>('idle');
+  const [srcMode,    setSrcMode]    = useState<SrcMode>('camera');
+  const [resolution, setResolution] = useState<Resolution>('720p');
+  const [title,      setTitle]      = useState('');
+  const [description,setDescription]= useState('');
+  const [viewers,    setViewers]    = useState(0);
   const [duration,   setDuration]   = useState(0);
+  const [micOn,      setMicOn]      = useState(true);
+  const [error,      setError]      = useState('');
   const [msgs,       setMsgs]       = useState<ChatMsg[]>([]);
   const [chatInput,  setChatInput]  = useState('');
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
-  // Temporizador de duración
   useEffect(() => {
     if (status !== 'live') return;
     const id = setInterval(() => setDuration(d => d + 1), 1000);
@@ -64,15 +63,94 @@ export function LiveBroadcaster() {
   }, [status]);
 
   function formatTime(s: number) {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-    return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+      : `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
   }
 
+  /* ── Canvas composite: pantalla + cámara PiP ── */
+  function startComposite(res: Resolution) {
+    const canvas = canvasRef.current;
+    const scVid  = screenVidRef.current;
+    const camVid = camVidRef.current;
+    if (!canvas || !scVid) return;
+
+    const { w, h, fps } = RES[res];
+    canvas.width  = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+
+    function draw() {
+      ctx.clearRect(0, 0, w, h);
+
+      // Fondo negro si el video no cargó aún
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const sv = scVid!;
+      if (sv.readyState >= 2) {
+        ctx.drawImage(sv, 0, 0, w, h);
+      } else {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Cámara PiP (esquina inferior derecha)
+      if (camVid && camVid.readyState >= 2) {
+        const pw = Math.round(w * 0.26);
+        const ph = Math.round(pw * 9 / 16);
+        const px = w - pw - 16;
+        const py = h - ph - 16;
+        const r  = 8;
+
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur  = 12;
+        ctx.beginPath();
+        ctx.moveTo(px + r, py);
+        ctx.lineTo(px + pw - r, py);
+        ctx.arcTo(px + pw, py, px + pw, py + r, r);
+        ctx.lineTo(px + pw, py + ph - r);
+        ctx.arcTo(px + pw, py + ph, px + pw - r, py + ph, r);
+        ctx.lineTo(px + r, py + ph);
+        ctx.arcTo(px, py + ph, px, py + ph - r, r);
+        ctx.lineTo(px, py + r);
+        ctx.arcTo(px, py, px + r, py, r);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(camVid, px, py, pw, ph);
+        ctx.restore();
+
+        // Borde blanco
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        ctx.lineWidth   = 2;
+        ctx.beginPath();
+        ctx.moveTo(px + r, py);
+        ctx.lineTo(px + pw - r, py);
+        ctx.arcTo(px + pw, py, px + pw, py + r, r);
+        ctx.lineTo(px + pw, py + ph - r);
+        ctx.arcTo(px + pw, py + ph, px + pw - r, py + ph, r);
+        ctx.lineTo(px + r, py + ph);
+        ctx.arcTo(px, py + ph, px, py + ph - r, r);
+        ctx.lineTo(px, py + r);
+        ctx.arcTo(px, py, px + r, py, r);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      rafRef.current = requestAnimationFrame(draw);
+    }
+
+    // Lanzar al fps correcto
+    rafRef.current = requestAnimationFrame(draw);
+
+    // Devolver el track del canvas
+    const stream = canvas.captureStream(fps);
+    return stream.getVideoTracks()[0];
+  }
+
+  /* ── Iniciar live ── */
   async function startLive() {
-    if (!title.trim()) { setError('Escribe un título para el live'); return; }
+    if (!title.trim()) { setError('Escribe un título'); return; }
     setError('');
 
     try {
@@ -83,46 +161,91 @@ export function LiveBroadcaster() {
       });
 
       const { token, url } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
+      const res = RES[resolution];
+      let rawVideoTrack: MediaStreamTrack;
 
-      const preset = PRESET_MAP[resolution];
-      const [videoTrack, audioTrack] = await Promise.all([
-        createLocalVideoTrack(preset.resolution),
-        createLocalAudioTrack({ echoCancellation: true, noiseSuppression: true, autoGainControl: true }),
-      ]);
-      camRef.current = videoTrack;
-      micRef.current = audioTrack;
+      if (srcMode === 'camera') {
+        /* ── Solo cámara ── */
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+        });
+        const camTrack = stream.getVideoTracks()[0];
+        if (!camTrack) throw new Error('No se encontró cámara');
+        rawVideoTrack = camTrack;
+        if (previewRef.current) { previewRef.current.srcObject = stream; }
 
-      // Hint al encoder del navegador: optimizar para contenido con movimiento normal
-      if (videoTrack.mediaStreamTrack) {
-        (videoTrack.mediaStreamTrack as MediaStreamTrack & { contentHint: string }).contentHint = 'motion';
+      } else if (srcMode === 'screen') {
+        /* ── Solo pantalla ── */
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+        });
+        const screenTrack = stream.getVideoTracks()[0];
+        if (!screenTrack) throw new Error('No se encontró pantalla');
+        rawVideoTrack = screenTrack;
+        if (previewRef.current) { previewRef.current.srcObject = stream; }
+        rawVideoTrack.addEventListener('ended', () => stopLive());
+
+      } else {
+        /* ── Pantalla + Cámara (canvas composite) ── */
+        const [screenStream, camStream] = await Promise.all([
+          navigator.mediaDevices.getDisplayMedia({
+            video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+          }),
+          navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: 30 },
+          }).catch(() => null), // cámara opcional
+        ]);
+
+        // Alimentar videos ocultos
+        if (screenVidRef.current) {
+          screenVidRef.current.srcObject = screenStream;
+          await screenVidRef.current.play().catch(() => null);
+        }
+        if (camStream && camVidRef.current) {
+          camVidRef.current.srcObject = camStream;
+          await camVidRef.current.play().catch(() => null);
+        }
+
+        // Preview = canvas
+        const compositeTrack = startComposite(resolution);
+        if (!compositeTrack) throw new Error('Canvas no disponible');
+        rawVideoTrack = compositeTrack;
+        if (previewRef.current && canvasRef.current) {
+          previewRef.current.srcObject = canvasRef.current.captureStream(res.fps);
+        }
+
+        screenStream.getVideoTracks()[0]?.addEventListener('ended', () => stopLive());
       }
 
-      if (videoRef.current) videoTrack.attach(videoRef.current);
+      // Hint al encoder
+      (rawVideoTrack as MediaStreamTrack & { contentHint: string }).contentHint =
+        srcMode === 'screen' ? 'detail' : 'motion';
 
-      // simulcast:false → un solo stream, el CPU solo codifica UNA vez en vez de 3
+      const lkVideoTrack = new LocalVideoTrack(rawVideoTrack, undefined, false);
+      videoTrackRef.current = lkVideoTrack;
+
+      // Audio
+      const audioTrack = await createLocalAudioTrack({
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      });
+      micRef.current = audioTrack;
+
+      // Conectar y publicar
       const room = new Room({ dynacast: false });
       roomRef.current = room;
 
-      room.on(RoomEvent.ParticipantConnected,    (_p: RemoteParticipant) => setViewers(v => v + 1));
-      room.on(RoomEvent.ParticipantDisconnected, (_p: RemoteParticipant) => setViewers(v => Math.max(0, v - 1)));
-
+      room.on(RoomEvent.ParticipantConnected,    () => setViewers(v => v + 1));
+      room.on(RoomEvent.ParticipantDisconnected, () => setViewers(v => Math.max(0, v - 1)));
       room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
         try {
           const msg = JSON.parse(dec.decode(payload));
-          if (msg.type === 'chat') setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.text, ts: msg.ts }]);
+          if (msg.type === 'chat') setMsgs(p => [...p.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.text, ts: msg.ts }]);
         } catch {}
       });
 
       await room.connect(url, token);
-
-      // H264 usa el encoder por hardware del GPU/CPU (mucho menos lag que VP8 software)
-      // simulcast:false = UN solo stream en lugar de 3, drástica reducción de CPU
-      await room.localParticipant.publishTrack(videoTrack, {
-        videoEncoding: {
-          maxBitrate: preset.encoding.maxBitrate,
-          maxFramerate: preset.encoding.maxFramerate,
-          priority: 'high',
-        },
+      await room.localParticipant.publishTrack(lkVideoTrack, {
+        videoEncoding: { maxBitrate: res.bitrate, maxFramerate: res.fps, priority: 'high' },
         simulcast: false,
         videoCodec: 'h264',
       });
@@ -139,91 +262,43 @@ export function LiveBroadcaster() {
     }
   }
 
+  /* ── Detener live ── */
   async function stopLive() {
-    camRef.current?.stop();
-    micRef.current?.stop();
-    screenRef.current?.stop();
-    if (videoRef.current) videoRef.current.srcObject = null;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+
+    videoTrackRef.current?.mediaStreamTrack.stop();
+    micRef.current?.mediaStreamTrack.stop();
+
+    if (screenVidRef.current?.srcObject) {
+      (screenVidRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      screenVidRef.current.srcObject = null;
+    }
+    if (camVidRef.current?.srcObject) {
+      (camVidRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+      camVidRef.current.srcObject = null;
+    }
+    if (previewRef.current) previewRef.current.srcObject = null;
+
     roomRef.current?.disconnect();
     roomRef.current = null;
-    camRef.current = null;
-    micRef.current = null;
-    screenRef.current = null;
 
     await fetch('/api/livekit/stop', { method: 'POST' }).catch(() => null);
-
     setStatus('idle');
     setViewers(0);
-    setSharing(false);
-    setMicOn(true);
-    setCamOn(true);
+    setDuration(0);
   }
 
   async function toggleMic() {
-    const mic = micRef.current;
-    if (!mic) return;
+    const mic = micRef.current; if (!mic) return;
     if (micOn) { await mic.mute(); setMicOn(false); }
     else { await mic.unmute(); setMicOn(true); }
   }
 
-  async function toggleCam() {
-    const cam = camRef.current;
-    if (!cam || sharing) return;
-    if (camOn) { await cam.mute(); setCamOn(false); }
-    else { await cam.unmute(); setCamOn(true); }
-  }
-
-  async function toggleScreenShare() {
-    const room = roomRef.current;
-    const cam  = camRef.current;
-    if (!room || !cam) return;
-
-    if (sharing) {
-      // Volver a cámara
-      const screen = screenRef.current;
-      if (screen) {
-        await room.localParticipant.unpublishTrack(screen);
-        screen.stop();
-        screenRef.current = null;
-      }
-      await room.localParticipant.publishTrack(cam, {
-        videoEncoding: { maxBitrate: PRESET_MAP[resolution].encoding.maxBitrate, maxFramerate: 30, priority: 'high' },
-        simulcast: false,
-        videoCodec: 'h264',
-      });
-      if (videoRef.current) cam.attach(videoRef.current);
-      setSharing(false);
-    } else {
-      // Compartir pantalla — 'detail' optimiza para texto/pantallas estáticas
-      try {
-        const [screenTrack] = await createLocalScreenTracks({ audio: false });
-        screenRef.current = screenTrack as LocalVideoTrack;
-        if (screenRef.current.mediaStreamTrack) {
-          (screenRef.current.mediaStreamTrack as MediaStreamTrack & { contentHint: string }).contentHint = 'detail';
-        }
-        await room.localParticipant.unpublishTrack(cam);
-        await room.localParticipant.publishTrack(screenRef.current, {
-          videoEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
-          simulcast: false,
-          videoCodec: 'h264',
-        });
-        if (videoRef.current) screenRef.current.attach(videoRef.current);
-        setSharing(true);
-
-        // Auto-revertir cuando el usuario cierra compartir
-        screenRef.current.on('ended', async () => {
-          if (sharing) await toggleScreenShare();
-        });
-      } catch {}
-    }
-  }
-
   async function sendChat() {
-    const text = chatInput.trim();
-    if (!text || !roomRef.current) return;
+    const text = chatInput.trim(); if (!text || !roomRef.current) return;
     const payload = enc.encode(JSON.stringify({ type: 'chat', name: 'Admin 🎙', text, ts: Date.now(), broadcaster: true }));
     await roomRef.current.localParticipant.publishData(payload, { reliable: true });
-    setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: 'Admin 🎙', text, ts: Date.now(), broadcaster: true }]);
+    setMsgs(p => [...p.slice(-199), { id: crypto.randomUUID(), name: 'Admin 🎙', text, ts: Date.now(), broadcaster: true }]);
     setChatInput('');
   }
 
@@ -231,14 +306,19 @@ export function LiveBroadcaster() {
 
   return (
     <div className="space-y-5">
+      {/* Videos ocultos para composite */}
+      <video ref={screenVidRef} autoPlay muted playsInline style={{ display: 'none' }} />
+      <video ref={camVidRef}    autoPlay muted playsInline style={{ display: 'none' }} />
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
       {/* Preview */}
       <div className="relative w-full max-w-2xl rounded-2xl overflow-hidden bg-black mx-auto"
            style={{ aspectRatio: '16/9' }}>
-        <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+        <video ref={previewRef} autoPlay muted playsInline className="w-full h-full object-contain" />
 
         {status !== 'live' && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-white/30 text-sm">Vista previa de cámara</p>
+            <p className="text-white/30 text-sm">Vista previa</p>
           </div>
         )}
 
@@ -257,143 +337,61 @@ export function LiveBroadcaster() {
             </span>
           </div>
         )}
-
-        {/* Indicador pantalla compartida */}
-        {sharing && (
-          <div className="absolute bottom-3 left-3">
-            <span className="rounded-full px-3 py-1 text-xs font-bold text-white bg-blue-600">
-              🖥 Pantalla compartida
-            </span>
-          </div>
-        )}
-
-        {/* Cámara apagada */}
-        {!camOn && !sharing && status === 'live' && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-            <div className="text-center">
-              <span className="text-4xl">📷</span>
-              <p className="text-white/60 text-sm mt-2">Cámara desactivada</p>
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* ── Controles durante el live ── */}
+      {/* Controles durante el live */}
       {status === 'live' && (
-        <div className="max-w-2xl mx-auto">
-          {/* Barra de controles */}
-          <div className="flex items-center justify-center gap-3 flex-wrap">
+        <div className="max-w-2xl mx-auto flex items-center justify-center gap-3">
+          {/* Micrófono */}
+          <button onClick={toggleMic}
+            className={`flex flex-col items-center gap-1 rounded-2xl px-5 py-3 text-xs font-medium border transition-all ${
+              micOn ? 'bg-[var(--color-card)] border-[var(--color-border)] hover:border-[var(--color-accent)]'
+                    : 'bg-red-600/20 border-red-500/50 text-red-400'
+            }`}>
+            {micOn
+              ? <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+              : <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.34 3 3 3 .23 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V20c0 .55.45 1 1 1s1-.45 1-1v-2.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>
+            }
+            {micOn ? 'Micro' : 'Silenciado'}
+          </button>
 
-            {/* Micrófono */}
-            <button
-              onClick={toggleMic}
-              title={micOn ? 'Silenciar micrófono' : 'Activar micrófono'}
-              className={`flex flex-col items-center gap-1 rounded-2xl px-4 py-3 text-xs font-medium transition-all ${
-                micOn
-                  ? 'bg-[var(--color-card)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]'
-                  : 'bg-red-600/20 border border-red-500/50 text-red-400'
-              }`}
-            >
-              {micOn ? (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/>
-                </svg>
-              ) : (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.34 3 3 3 .23 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V20c0 .55.45 1 1 1s1-.45 1-1v-2.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/>
-                </svg>
-              )}
-              {micOn ? 'Micro' : 'Sin micro'}
-            </button>
-
-            {/* Cámara */}
-            <button
-              onClick={toggleCam}
-              disabled={sharing}
-              title={camOn ? 'Apagar cámara' : 'Encender cámara'}
-              className={`flex flex-col items-center gap-1 rounded-2xl px-4 py-3 text-xs font-medium transition-all disabled:opacity-40 ${
-                camOn && !sharing
-                  ? 'bg-[var(--color-card)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-[var(--color-accent)]'
-                  : 'bg-red-600/20 border border-red-500/50 text-red-400'
-              }`}
-            >
-              {camOn ? (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/>
-                </svg>
-              ) : (
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/>
-                </svg>
-              )}
-              {camOn ? 'Cámara' : 'Sin cámara'}
-            </button>
-
-            {/* Pantalla compartida */}
-            <button
-              onClick={toggleScreenShare}
-              title={sharing ? 'Dejar de compartir pantalla' : 'Compartir pantalla'}
-              className={`flex flex-col items-center gap-1 rounded-2xl px-4 py-3 text-xs font-medium transition-all ${
-                sharing
-                  ? 'bg-blue-600/20 border border-blue-500/50 text-blue-400'
-                  : 'bg-[var(--color-card)] border border-[var(--color-border)] text-[var(--color-fg)] hover:border-blue-500'
-              }`}
-            >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zm-7-3.53v-2.19c-2.78.48-4.34 1.71-5.5 3.72.14-1.4.84-4.45 5.5-5.31V8.5L16 11l-3 3.47z"/>
-              </svg>
-              {sharing ? 'Compartiendo' : 'Pantalla'}
-            </button>
-
-            {/* Terminar */}
-            <button
-              onClick={stopLive}
-              className="flex flex-col items-center gap-1 rounded-2xl px-4 py-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M6 6h12v12H6z"/>
-              </svg>
-              Terminar
-            </button>
-          </div>
-
-          <p className="text-center text-xs mt-3" style={{ color: 'var(--color-muted)' }}>
-            Los espectadores ven tu stream en tiempo real en <b>/live</b>
-          </p>
+          {/* Terminar */}
+          <button onClick={stopLive}
+            className="flex flex-col items-center gap-1 rounded-2xl px-5 py-3 text-xs font-bold text-white bg-red-600 hover:bg-red-700 transition-colors">
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+            Terminar
+          </button>
         </div>
       )}
 
-      {/* ── Chat (visible durante el live) ── */}
+      {/* Chat durante el live */}
       {status === 'live' && (
-        <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
+        <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden"
+             style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
           <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
             <span className="text-sm font-bold">💬 Chat en vivo</span>
             {msgs.length > 0 && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--color-border)', color: 'var(--color-muted)' }}>{msgs.length}</span>}
           </div>
-          <div className="h-48 overflow-y-auto px-4 py-3 space-y-2 flex flex-col">
+          <div className="h-44 overflow-y-auto px-4 py-3 space-y-2 flex flex-col">
             {msgs.length === 0 && (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>Los mensajes del chat aparecerán aquí</p>
+                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>Los mensajes aparecerán aquí</p>
               </div>
             )}
             {msgs.map(m => (
               <div key={m.id} className="flex gap-2 text-sm">
                 <span className={`font-bold shrink-0 ${m.broadcaster ? 'text-[var(--color-accent)]' : ''}`}>{m.name}:</span>
-                <span style={{ color: 'var(--color-fg)' }}>{m.text}</span>
+                <span>{m.text}</span>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
           <div className="flex gap-2 px-4 py-3 border-t" style={{ borderColor: 'var(--color-border)' }}>
-            <input
-              value={chatInput}
-              onChange={e => setChatInput(e.target.value)}
-              placeholder="Responder al chat..."
-              maxLength={200}
+            <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+              placeholder="Responder..." maxLength={200}
               className="flex-1 rounded-xl border px-3 py-2 text-sm"
               style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }}
-            />
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); sendChat(); } }} />
             <button onClick={sendChat} disabled={!chatInput.trim()}
               className="rounded-xl px-4 py-2 text-sm font-bold text-white disabled:opacity-40 hover:opacity-90"
               style={{ background: 'var(--color-accent)' }}>
@@ -403,64 +401,74 @@ export function LiveBroadcaster() {
         </div>
       )}
 
-      {/* ── Formulario de inicio ── */}
+      {/* Formulario de inicio */}
       {status !== 'live' && (
-        <div className="max-w-md mx-auto space-y-4">
+        <div className="max-w-md mx-auto space-y-5">
           <div>
             <label className="block text-sm font-medium mb-1">Título *</label>
-            <input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
+            <input value={title} onChange={e => setTitle(e.target.value)}
               placeholder="Ej: Desbloqueo Xiaomi Redmi Note 13"
               className="w-full rounded-xl border px-4 py-2.5 text-sm"
-              style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
-            />
+              style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }} />
           </div>
+
           <div>
             <label className="block text-sm font-medium mb-1">Descripción (opcional)</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={2}
-              placeholder="¿Qué vas a hacer en este live?"
+            <textarea value={description} onChange={e => setDescription(e.target.value)}
+              rows={2} placeholder="¿Qué vas a hacer en este live?"
               className="w-full rounded-xl border px-4 py-2.5 text-sm resize-none"
-              style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
-            />
+              style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }} />
+          </div>
+
+          {/* Fuente de video */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Fuente de video</label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: 'camera', icon: '📷', label: 'Solo cámara' },
+                { id: 'screen', icon: '🖥', label: 'Solo pantalla' },
+                { id: 'both',   icon: '🎥', label: 'Pantalla + cámara' },
+              ] as { id: SrcMode; icon: string; label: string }[]).map(opt => (
+                <button key={opt.id} onClick={() => setSrcMode(opt.id)}
+                  className={`flex flex-col items-center gap-1.5 rounded-xl py-3 px-2 text-xs font-medium border transition-all ${
+                    srcMode === opt.id
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                      : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
+                  }`}>
+                  <span className="text-xl">{opt.icon}</span>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs mt-1.5" style={{ color: 'var(--color-muted)' }}>
+              {srcMode === 'camera' && 'Transmite tu cámara web.'}
+              {srcMode === 'screen' && 'Comparte la pantalla de tu PC. No necesitas cámara.'}
+              {srcMode === 'both'   && 'Pantalla completa con tu cámara en la esquina inferior derecha.'}
+            </p>
           </div>
 
           {/* Resolución */}
           <div>
-            <label className="block text-sm font-medium mb-2">Resolución de transmisión</label>
+            <label className="block text-sm font-medium mb-2">Resolución</label>
             <div className="grid grid-cols-4 gap-2">
               {(['360p', '480p', '720p', '1080p'] as Resolution[]).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setResolution(r)}
+                <button key={r} onClick={() => setResolution(r)}
                   className={`rounded-xl py-2 text-xs font-bold border transition-all ${
                     resolution === r
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                       : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
-                  }`}
-                >
+                  }`}>
                   {r}
                 </button>
               ))}
             </div>
-            <p className="text-xs mt-1" style={{ color: 'var(--color-muted)' }}>
-              {resolution === '1080p' && '⚠️ Requiere buena conexión (10+ Mbps subida)'}
-              {resolution === '720p'  && 'Recomendado para la mayoría de conexiones'}
-              {resolution === '480p'  && 'Bueno para conexiones moderadas'}
-              {resolution === '360p'  && 'Para conexiones lentas'}
-            </p>
           </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
 
-          <button
-            onClick={startLive}
+          <button onClick={startLive}
             className="w-full rounded-xl py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95"
-            style={{ background: '#ef4444' }}
-          >
+            style={{ background: '#ef4444' }}>
             Iniciar transmisión
           </button>
         </div>
