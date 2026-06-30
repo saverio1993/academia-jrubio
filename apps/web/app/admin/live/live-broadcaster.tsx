@@ -1,19 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { io, Socket } from 'socket.io-client';
-
-interface Props {
-  apiUrl: string;
-}
+import {
+  Room,
+  RoomEvent,
+  Track,
+  createLocalVideoTrack,
+  createLocalAudioTrack,
+  type LocalVideoTrack,
+  type RemoteParticipant,
+} from 'livekit-client';
 
 type Status = 'idle' | 'live' | 'error';
 
-export function LiveBroadcaster({ apiUrl }: Props) {
+export function LiveBroadcaster() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const socketRef = useRef<Socket | null>(null);
-  const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const roomRef = useRef<Room | null>(null);
+  const videoTrackRef = useRef<LocalVideoTrack | null>(null);
 
   const [status, setStatus] = useState<Status>('idle');
   const [title, setTitle] = useState('');
@@ -26,80 +29,62 @@ export function LiveBroadcaster({ apiUrl }: Props) {
     setError('');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-
-      const socket = io(`${apiUrl}/live`, { transports: ['websocket'] });
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        socket.emit('broadcaster-ready', { title: title.trim(), description: description.trim() });
-        setStatus('live');
+      // 1. Registrar en DB y enviar notif Telegram
+      await fetch('/api/livekit/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title.trim(), description: description.trim() }),
       });
 
-      // Nuevo viewer quiere conectarse
-      socket.on('new-viewer', async ({ viewerId }: { viewerId: string }) => {
-        setViewers(v => v + 1);
-        const pc = createPeerConnection(socket, viewerId);
-        peersRef.current.set(viewerId, pc);
+      // 2. Obtener token de broadcaster
+      const res = await fetch('/api/livekit/token?role=broadcaster');
+      const { token, url } = await res.json();
 
-        // Agregar tracks del stream al peer
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      // 3. Crear tracks locales
+      const [videoTrack, audioTrack] = await Promise.all([
+        createLocalVideoTrack({ resolution: { width: 1280, height: 720, frameRate: 30 } }),
+        createLocalAudioTrack(),
+      ]);
+      videoTrackRef.current = videoTrack;
 
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('webrtc-offer', { viewerId, offer });
+      // 4. Preview local
+      if (videoRef.current) videoTrack.attach(videoRef.current);
+
+      // 5. Conectar y publicar
+      const room = new Room();
+      roomRef.current = room;
+
+      room.on(RoomEvent.ParticipantConnected, (_p: RemoteParticipant) =>
+        setViewers(v => v + 1)
+      );
+      room.on(RoomEvent.ParticipantDisconnected, (_p: RemoteParticipant) =>
+        setViewers(v => Math.max(0, v - 1))
+      );
+      room.on(RoomEvent.Disconnected, () => {
+        setStatus('idle');
+        setViewers(0);
       });
 
-      socket.on('webrtc-answer', async ({ viewerId, answer }: { viewerId: string; answer: RTCSessionDescriptionInit }) => {
-        const pc = peersRef.current.get(viewerId);
-        if (pc) await pc.setRemoteDescription(new RTCSessionDescription(answer));
-      });
+      await room.connect(url, token);
+      await room.localParticipant.publishTrack(videoTrack);
+      await room.localParticipant.publishTrack(audioTrack);
 
-      socket.on('ice-candidate', async ({ fromId, candidate }: { fromId: string; candidate: RTCIceCandidateInit }) => {
-        const pc = peersRef.current.get(fromId);
-        if (pc) await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => null);
-      });
-
-      socket.on('disconnect', () => {
-        if (status === 'live') stopLive();
-      });
-
+      // Contar viewers ya conectados
+      setViewers(room.remoteParticipants.size);
+      setStatus('live');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al acceder a la cámara');
+      setError(e instanceof Error ? e.message : 'Error al iniciar la transmisión');
       setStatus('error');
     }
   }
 
-  function createPeerConnection(socket: Socket, viewerId: string) {
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
-    pc.onicecandidate = ({ candidate }) => {
-      if (candidate) socket.emit('ice-candidate', { targetId: viewerId, candidate });
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-        peersRef.current.delete(viewerId);
-        setViewers(v => Math.max(0, v - 1));
-      }
-    };
-    return pc;
-  }
-
-  function stopLive() {
-    socketRef.current?.emit('broadcaster-stop');
-    socketRef.current?.disconnect();
-    socketRef.current = null;
-
-    peersRef.current.forEach(pc => pc.close());
-    peersRef.current.clear();
-
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-
+  async function stopLive() {
+    videoTrackRef.current?.stop();
     if (videoRef.current) videoRef.current.srcObject = null;
+    roomRef.current?.disconnect();
+    roomRef.current = null;
+
+    await fetch('/api/livekit/stop', { method: 'POST' }).catch(() => null);
 
     setStatus('idle');
     setViewers(0);
@@ -110,14 +95,18 @@ export function LiveBroadcaster({ apiUrl }: Props) {
   return (
     <div className="space-y-6">
       {/* Preview */}
-      <div className="relative w-full max-w-2xl rounded-2xl overflow-hidden bg-black mx-auto"
-           style={{ aspectRatio: '16/9' }}>
+      <div
+        className="relative w-full max-w-2xl rounded-2xl overflow-hidden bg-black mx-auto"
+        style={{ aspectRatio: '16/9' }}
+      >
         <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+
         {status !== 'live' && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <p className="text-white/40 text-sm">Vista previa de cámara</p>
+            <p className="text-white/30 text-sm">Vista previa de cámara</p>
           </div>
         )}
+
         {status === 'live' && (
           <div className="absolute top-3 left-3 flex items-center gap-2">
             <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white bg-red-600">
@@ -131,11 +120,11 @@ export function LiveBroadcaster({ apiUrl }: Props) {
         )}
       </div>
 
-      {/* Controls */}
-      {status === 'idle' || status === 'error' ? (
+      {/* Controles */}
+      {status !== 'live' ? (
         <div className="max-w-md mx-auto space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-1">Título del live *</label>
+            <label className="block text-sm font-medium mb-1">Título *</label>
             <input
               value={title}
               onChange={e => setTitle(e.target.value)}
@@ -158,18 +147,21 @@ export function LiveBroadcaster({ apiUrl }: Props) {
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button
             onClick={startLive}
-            className="w-full rounded-xl py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+            className="w-full rounded-xl py-3 text-sm font-bold text-white transition-opacity hover:opacity-90 active:scale-95"
             style={{ background: '#ef4444' }}
           >
             Iniciar transmisión
           </button>
         </div>
       ) : (
-        <div className="text-center space-y-3">
-          <p className="text-sm font-medium">{title}</p>
+        <div className="text-center space-y-2">
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+            {viewers} {viewers === 1 ? 'persona viendo' : 'personas viendo'}
+          </p>
           <button
             onClick={stopLive}
-            className="rounded-xl px-8 py-3 text-sm font-bold text-white transition-opacity hover:opacity-90"
+            className="mt-2 rounded-xl px-8 py-3 text-sm font-bold text-white transition-opacity hover:opacity-80"
             style={{ background: 'var(--color-muted)' }}
           >
             Detener transmisión
