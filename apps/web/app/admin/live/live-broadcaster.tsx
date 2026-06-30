@@ -64,6 +64,7 @@ export function LiveBroadcaster() {
   const [linkLabel,    setLinkLabel]    = useState('');
   const [fileUploading,setFileUploading]= useState(false);
   const [uploadedFile, setUploadedFile] = useState<{ url: string; filename: string; size: number } | null>(null);
+  const [shareError,   setShareError]   = useState('');
   const [showGpu,      setShowGpu]      = useState(false);
   const [trackInfo,  setTrackInfo]  = useState<string>('');
   const [obsCreds,   setObsCreds]   = useState<{ rtmpUrl: string; streamKey: string } | null>(null);
@@ -406,7 +407,7 @@ export function LiveBroadcaster() {
   }
 
   async function uploadLiveFile(file: File) {
-    setFileUploading(true); setUploadedFile(null);
+    setFileUploading(true); setUploadedFile(null); setShareError('');
     try {
       const fd = new FormData(); fd.append('file', file);
       const res = await fetch('/api/livekit/share', { method: 'POST', body: fd });
@@ -414,7 +415,7 @@ export function LiveBroadcaster() {
       if (data.error) throw new Error(data.error);
       setUploadedFile(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al subir archivo');
+      setShareError(e instanceof Error ? e.message : 'Error al subir archivo');
     } finally {
       setFileUploading(false);
     }
@@ -646,6 +647,7 @@ export function LiveBroadcaster() {
                 {/* Tab: Archivo */}
                 {shareTab === 'file' && (
                   <div className="space-y-2">
+                    {shareError && <p className="text-xs text-red-500 rounded-lg px-2 py-1 bg-red-500/10">{shareError}</p>}
                     <input ref={fileInputRef} type="file" className="hidden"
                       onChange={e => { const f = e.target.files?.[0]; if (f) uploadLiveFile(f); if (fileInputRef.current) fileInputRef.current.value = ''; }} />
 
