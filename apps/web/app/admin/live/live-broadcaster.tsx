@@ -176,7 +176,7 @@ export function LiveBroadcaster() {
         body: JSON.stringify({ title: title.trim(), description: description.trim() }),
       });
 
-      /* ── Modo OBS: solo crear el ingress RTMP, no capturar cámara ── */
+      /* ── Modo OBS: crear ingress RTMP + conectar al room para data channel ── */
       if (srcMode === 'obs') {
         const res2 = await fetch('/api/livekit/ingress', { method: 'POST' });
         const text = await res2.text();
@@ -184,6 +184,22 @@ export function LiveBroadcaster() {
         try { data = JSON.parse(text); } catch { throw new Error(`Ingress error (${res2.status}): ${text.slice(0, 200)}`); }
         if (data.error) throw new Error(String(data.error));
         setObsCreds({ rtmpUrl: String(data.rtmpUrl), streamKey: String(data.streamKey) });
+
+        // Conectar al room solo para data channel (chat + compartir archivos)
+        const { token: tkObs, url: urlObs } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
+        const obsRoom = new Room({ dynacast: false });
+        roomRef.current = obsRoom;
+        obsRoom.on(RoomEvent.ParticipantConnected,    (p: RemoteParticipant) => { if (p.identity.startsWith('viewer-')) setViewers(v => v + 1); });
+        obsRoom.on(RoomEvent.ParticipantDisconnected, (p: RemoteParticipant) => { if (p.identity.startsWith('viewer-')) setViewers(v => Math.max(0, v - 1)); });
+        obsRoom.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
+          try {
+            const msg = JSON.parse(dec.decode(payload));
+            if (msg.type === 'chat') setMsgs(p => [...p.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.text, ts: msg.ts }]);
+          } catch {}
+        });
+        await obsRoom.connect(urlObs, tkObs);
+        setViewers([...obsRoom.remoteParticipants.values()].filter(p => p.identity.startsWith('viewer-')).length);
+
         setStatus('live');
         setDuration(0);
         return;
@@ -541,8 +557,8 @@ export function LiveBroadcaster() {
         </div>
       )}
 
-      {/* Chat durante el live (solo modos no-OBS donde el broadcaster está conectado) */}
-      {status === 'live' && srcMode !== 'obs' && (
+      {/* Chat + Compartir durante el live (todos los modos) */}
+      {status === 'live' && (
         <div className="max-w-2xl mx-auto rounded-2xl border overflow-hidden"
              style={{ borderColor: 'var(--color-border)', background: 'var(--color-card)' }}>
           <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: 'var(--color-border)' }}>
