@@ -45,7 +45,7 @@ export function LiveBroadcaster() {
   const [status,     setStatus]     = useState<Status>('idle');
   const [srcMode,    setSrcMode]    = useState<SrcMode>('camera');
   const [audioSrc,   setAudioSrc]   = useState<'mic' | 'mix'>('mic');
-  const [resolution, setResolution] = useState<Resolution>('720p');
+  const [resolution, setResolution] = useState<Resolution>('1080p');
   const [title,      setTitle]      = useState('');
   const [description,setDescription]= useState('');
   const [viewers,    setViewers]    = useState(0);
@@ -73,13 +73,13 @@ export function LiveBroadcaster() {
   }
 
   /* ── Canvas composite: pantalla + cámara PiP ── */
-  function startComposite(res: Resolution) {
+  function startComposite(dims: { w: number; h: number; fps: number }) {
     const canvas = canvasRef.current;
     const scVid  = screenVidRef.current;
     const camVid = camVidRef.current;
     if (!canvas || !scVid) return;
 
-    const { w, h, fps } = RES[res];
+    const { w, h, fps } = dims;
     canvas.width  = w;
     canvas.height = h;
     const ctx = canvas.getContext('2d', { alpha: false })!;
@@ -174,9 +174,13 @@ export function LiveBroadcaster() {
       const wantDesktopAudio = audioSrc === 'mix' && (srcMode === 'screen' || srcMode === 'both');
 
       if (srcMode === 'camera') {
-        /* ── Solo cámara ── */
+        /* ── Solo cámara: pedir el máximo que la cámara soporte ── */
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+          video: {
+            width:     { ideal: 3840, min: 640 },   // 4K → 1080p → 720p según la cámara
+            height:    { ideal: 2160, min: 480 },
+            frameRate: { ideal: res.fps, max: res.fps },
+          },
         });
         const camTrack = stream.getVideoTracks()[0];
         if (!camTrack) throw new Error('No se encontró cámara');
@@ -184,9 +188,9 @@ export function LiveBroadcaster() {
         if (previewRef.current) { previewRef.current.srcObject = stream; }
 
       } else if (srcMode === 'screen') {
-        /* ── Solo pantalla (+ audio escritorio opcional) ── */
+        /* ── Pantalla: resolución nativa del monitor ── */
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+          video: { frameRate: { ideal: res.fps, max: res.fps } }, // sin limitar ancho/alto → resolución nativa
           audio: wantDesktopAudio,
         });
         const screenTrack = stream.getVideoTracks()[0];
@@ -200,11 +204,11 @@ export function LiveBroadcaster() {
         /* ── Pantalla + Cámara (canvas composite) ── */
         const [screenStream, camStream] = await Promise.all([
           navigator.mediaDevices.getDisplayMedia({
-            video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+            video: { frameRate: { ideal: res.fps, max: res.fps } },
             audio: wantDesktopAudio,
           }),
           navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: 30 },
+            video: { width: { ideal: 1920, min: 320 }, height: { ideal: 1080, min: 240 }, frameRate: { ideal: 30 } },
           }).catch(() => null),
         ]);
 
@@ -219,7 +223,14 @@ export function LiveBroadcaster() {
           await camVidRef.current.play().catch(() => null);
         }
 
-        const compositeTrack = startComposite(resolution);
+        // Usar la resolución real del screen share (no el preset)
+        const scrSettings = screenStream.getVideoTracks()[0]?.getSettings() ?? {};
+        const compDims = {
+          w:   scrSettings.width  ?? res.w,
+          h:   scrSettings.height ?? res.h,
+          fps: res.fps,
+        };
+        const compositeTrack = startComposite(compDims);
         if (!compositeTrack) throw new Error('Canvas no disponible');
         rawVideoTrack = compositeTrack;
         if (previewRef.current && canvasRef.current) {
@@ -517,18 +528,27 @@ export function LiveBroadcaster() {
             </div>
           </div>
 
-          {/* Resolución */}
+          {/* Calidad de envío (controla bitrate, la captura siempre usa el máximo) */}
           <div>
-            <label className="block text-sm font-medium mb-2">Resolución</label>
+            <label className="block text-sm font-medium mb-1">Calidad de envío</label>
+            <p className="text-xs mb-2" style={{ color: 'var(--color-muted)' }}>
+              La captura siempre usa la resolución máxima disponible. Este ajuste controla el bitrate enviado.
+            </p>
             <div className="grid grid-cols-4 gap-2">
-              {(['360p', '480p', '720p', '1080p'] as Resolution[]).map(r => (
-                <button key={r} onClick={() => setResolution(r)}
-                  className={`rounded-xl py-2 text-xs font-bold border transition-all ${
-                    resolution === r
+              {([
+                { id: '360p',  label: '360p',  sub: '2 Mbps'  },
+                { id: '480p',  label: '480p',  sub: '4 Mbps'  },
+                { id: '720p',  label: '720p',  sub: '10 Mbps' },
+                { id: '1080p', label: '1080p', sub: '20 Mbps' },
+              ] as { id: Resolution; label: string; sub: string }[]).map(r => (
+                <button key={r.id} onClick={() => setResolution(r.id)}
+                  className={`flex flex-col items-center rounded-xl py-2 px-1 text-xs font-bold border transition-all ${
+                    resolution === r.id
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
                       : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
                   }`}>
-                  {r}
+                  <span>{r.label}</span>
+                  <span className="font-normal opacity-70">{r.sub}</span>
                 </button>
               ))}
             </div>
