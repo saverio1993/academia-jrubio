@@ -14,26 +14,32 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const at = new AccessToken(
-    process.env.LIVEKIT_API_KEY!,
-    process.env.LIVEKIT_API_SECRET!,
-    {
-      identity: role === 'broadcaster'
-        ? 'admin'
-        : `viewer-${crypto.randomUUID().slice(0, 8)}`,
-    }
-  );
+  try {
+    const at = new AccessToken(
+      process.env.LIVEKIT_API_KEY!,
+      process.env.LIVEKIT_API_SECRET!,
+      {
+        identity: role === 'broadcaster'
+          ? 'admin'
+          : `viewer-${crypto.randomUUID().slice(0, 8)}`,
+      }
+    );
 
-  at.addGrant({
-    roomJoin: true,
-    room: ROOM,
-    canPublish: role === 'broadcaster',
-    canSubscribe: true,
-    canPublishData: true,
-  });
+    at.addGrant({
+      roomJoin: true,
+      room: ROOM,
+      canPublish: role === 'broadcaster',
+      canSubscribe: true,
+      canPublishData: true,
+    });
 
-  return NextResponse.json({
-    token: await at.toJwt(),
-    url: process.env.LIVEKIT_URL,
-  });
+    return NextResponse.json({
+      token: await at.toJwt(),
+      url: process.env.LIVEKIT_URL,
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[livekit/token] error:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

@@ -171,23 +171,32 @@ export function LiveBroadcaster() {
     setError('');
 
     try {
-      await fetch('/api/livekit/start', {
+      // Helper: fetch con JSON seguro — lanza error descriptivo si la respuesta no es OK
+      async function safeJson(res: Response) {
+        const text = await res.text();
+        if (!text) throw new Error(`HTTP ${res.status} (respuesta vacía del servidor)`);
+        try { return JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`); }
+      }
+
+      const startRes = await fetch('/api/livekit/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), description: description.trim() }),
       });
+      const startData = await safeJson(startRes);
+      if (startData.error) throw new Error(startData.error);
 
       /* ── Modo OBS: crear ingress RTMP + conectar al room para data channel ── */
       if (srcMode === 'obs') {
         const res2 = await fetch('/api/livekit/ingress', { method: 'POST' });
-        const text = await res2.text();
-        let data: Record<string, unknown>;
-        try { data = JSON.parse(text); } catch { throw new Error(`Ingress error (${res2.status}): ${text.slice(0, 200)}`); }
+        const data = await safeJson(res2);
         if (data.error) throw new Error(String(data.error));
         setObsCreds({ rtmpUrl: String(data.rtmpUrl), streamKey: String(data.streamKey) });
 
         // Conectar al room solo para data channel (chat + compartir archivos)
-        const { token: tkObs, url: urlObs } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
+        const tkData = await safeJson(await fetch('/api/livekit/token?role=broadcaster'));
+        if (tkData.error) throw new Error(tkData.error);
+        const { token: tkObs, url: urlObs } = tkData;
         const obsRoom = new Room({ dynacast: false });
         roomRef.current = obsRoom;
         obsRoom.on(RoomEvent.ParticipantConnected,    (p: RemoteParticipant) => { if (p.identity.startsWith('viewer-')) setViewers(v => v + 1); });
@@ -206,7 +215,9 @@ export function LiveBroadcaster() {
         return;
       }
 
-      const { token, url } = await fetch('/api/livekit/token?role=broadcaster').then(r => r.json());
+      const tkData2 = await safeJson(await fetch('/api/livekit/token?role=broadcaster'));
+      if (tkData2.error) throw new Error(tkData2.error);
+      const { token, url } = tkData2;
       const res = RES[resolution];
       let rawVideoTrack: MediaStreamTrack;
 

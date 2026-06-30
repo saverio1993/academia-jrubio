@@ -8,16 +8,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { title, description } = await req.json();
+  let title: string, description: string;
+  try {
+    ({ title, description } = await req.json());
+  } catch {
+    return NextResponse.json({ error: 'Cuerpo de solicitud inválido' }, { status: 400 });
+  }
 
-  await prisma.liveSession.updateMany({
-    where: { isLive: true },
-    data: { isLive: false, endedAt: new Date() },
-  });
+  let live;
+  try {
+    await prisma.liveSession.updateMany({
+      where: { isLive: true },
+      data: { isLive: false, endedAt: new Date() },
+    });
 
-  const live = await prisma.liveSession.create({
-    data: { title, description: description ?? '', isLive: true },
-  });
+    live = await prisma.liveSession.create({
+      data: { title, description: description ?? '', isLive: true },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[livekit/start] db error:', msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
   // Notificación Telegram
   const token = process.env.TELEGRAM_BOT_TOKEN;
