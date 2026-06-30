@@ -23,13 +23,14 @@ const dec = new TextDecoder();
 type Status = 'idle' | 'live' | 'error';
 type Resolution = '1080p' | '720p' | '480p' | '360p';
 
-// Mapeo a los presets oficiales de LiveKit (resolución + bitrate correcto)
-const PRESET_MAP = {
-  '1080p': VideoPresets.h1080,
-  '720p':  VideoPresets.h720,
-  '480p':  VideoPresets.h480,
-  '360p':  VideoPresets.h360,
-} satisfies Record<Resolution, (typeof VideoPresets)[keyof typeof VideoPresets]>;
+// Resoluciones con bitrates altos para conexión de 1 Gbps
+// LiveKit default: 1080p=5Mbps, 720p=1.7Mbps — subimos a calidad broadcast
+const PRESET_MAP: Record<Resolution, { resolution: { width: number; height: number; frameRate: number }; encoding: { maxBitrate: number; maxFramerate: number } }> = {
+  '1080p': { resolution: { width: 1920, height: 1080, frameRate: 30 }, encoding: { maxBitrate: 20_000_000, maxFramerate: 30 } },
+  '720p':  { resolution: { width: 1280, height: 720,  frameRate: 30 }, encoding: { maxBitrate: 10_000_000, maxFramerate: 30 } },
+  '480p':  { resolution: { width: 854,  height: 480,  frameRate: 30 }, encoding: { maxBitrate: 4_000_000,  maxFramerate: 30 } },
+  '360p':  { resolution: { width: 640,  height: 360,  frameRate: 30 }, encoding: { maxBitrate: 2_000_000,  maxFramerate: 30 } },
+};
 
 export function LiveBroadcaster() {
   const videoRef    = useRef<HTMLVideoElement>(null);
@@ -119,11 +120,11 @@ export function LiveBroadcaster() {
       await room.localParticipant.publishTrack(videoTrack, {
         videoEncoding: {
           maxBitrate: preset.encoding.maxBitrate,
-          maxFramerate: 25,        // 25fps en vez de 30 = 16% menos trabajo, imperceptible
+          maxFramerate: preset.encoding.maxFramerate,
           priority: 'high',
         },
         simulcast: false,
-        videoCodec: 'h264',        // Hardware encoding en la mayoría de PCs/Macs
+        videoCodec: 'h264',
       });
       await room.localParticipant.publishTrack(audioTrack, {
         audioPreset: AudioPresets.musicHighQuality,
@@ -186,7 +187,7 @@ export function LiveBroadcaster() {
         screenRef.current = null;
       }
       await room.localParticipant.publishTrack(cam, {
-        videoEncoding: { maxBitrate: PRESET_MAP[resolution].encoding.maxBitrate, maxFramerate: 25, priority: 'high' },
+        videoEncoding: { maxBitrate: PRESET_MAP[resolution].encoding.maxBitrate, maxFramerate: 30, priority: 'high' },
         simulcast: false,
         videoCodec: 'h264',
       });
@@ -202,7 +203,7 @@ export function LiveBroadcaster() {
         }
         await room.localParticipant.unpublishTrack(cam);
         await room.localParticipant.publishTrack(screenRef.current, {
-          videoEncoding: { maxBitrate: 3_000_000, maxFramerate: 15, priority: 'high' }, // 15fps es suficiente para pantallas
+          videoEncoding: { maxBitrate: 8_000_000, maxFramerate: 30, priority: 'high' },
           simulcast: false,
           videoCodec: 'h264',
         });
