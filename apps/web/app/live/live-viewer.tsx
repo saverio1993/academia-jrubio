@@ -25,7 +25,18 @@ const QUALITY_LABELS: Record<Quality, string> = {
   low:    'Baja',
 };
 
-interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
+interface ChatMsg {
+  id: string; name: string; text: string; ts: number; broadcaster?: boolean;
+  msgType?: 'link' | 'file';
+  url?: string;
+  fileSize?: number;
+}
+
+function fmtBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1048576) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1048576).toFixed(1)} MB`;
+}
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -149,6 +160,10 @@ export function LiveViewer() {
         const msg = JSON.parse(dec.decode(payload));
         if (msg.type === 'chat') {
           setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.text, ts: msg.ts, broadcaster: msg.broadcaster }]);
+        } else if (msg.type === 'link') {
+          setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.label || msg.url, ts: msg.ts, broadcaster: true, msgType: 'link', url: msg.url }]);
+        } else if (msg.type === 'file') {
+          setMsgs(prev => [...prev.slice(-199), { id: crypto.randomUUID(), name: msg.name, text: msg.filename, ts: msg.ts, broadcaster: true, msgType: 'file', url: msg.url, fileSize: msg.size }]);
         }
       } catch {}
     });
@@ -422,11 +437,39 @@ export function LiveViewer() {
               </div>
             )}
             {msgs.map(m => (
-              <div key={m.id} className="flex gap-2 text-sm">
-                <span className={`font-bold shrink-0 ${m.broadcaster ? 'text-[var(--color-accent)]' : ''}`}>
-                  {m.broadcaster ? '🎙 ' : ''}{m.name}:
-                </span>
-                <span style={{ color: 'var(--color-fg)' }}>{m.text}</span>
+              <div key={m.id}>
+                {m.msgType === 'link' || m.msgType === 'file' ? (
+                  /* Tarjeta de recurso compartido por el admin */
+                  <div className="rounded-xl p-2.5 my-1" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-accent)', borderLeft: '3px solid var(--color-accent)' }}>
+                    <p className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-accent)' }}>
+                      {m.msgType === 'link' ? '🔗 Enlace compartido' : '📁 Archivo compartido'} — {m.name}
+                    </p>
+                    <p className="text-xs font-medium mb-2 truncate" style={{ color: 'var(--color-fg)' }}>
+                      {m.text}
+                      {m.fileSize ? <span className="ml-1 font-normal opacity-60">({fmtBytes(m.fileSize)})</span> : null}
+                    </p>
+                    <a
+                      href={m.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={m.msgType === 'file'}
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition-opacity hover:opacity-90"
+                      style={{ background: 'var(--color-accent)' }}
+                    >
+                      {m.msgType === 'file'
+                        ? <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg> Descargar</>
+                        : <><svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59L7.76 14.83l1.41 1.41L19 5.41V9h2V3h-7z"/></svg> Abrir enlace</>
+                      }
+                    </a>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 text-sm">
+                    <span className={`font-bold shrink-0 ${m.broadcaster ? 'text-[var(--color-accent)]' : ''}`}>
+                      {m.broadcaster ? '🎙 ' : ''}{m.name}:
+                    </span>
+                    <span style={{ color: 'var(--color-fg)' }}>{m.text}</span>
+                  </div>
+                )}
               </div>
             ))}
             <div ref={chatEndRef} />

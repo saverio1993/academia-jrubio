@@ -1,11 +1,15 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 
 const SUPPORT_EMAIL = 'saveriomanrrique19@gmail.com';
 
 export function SupportButton() {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  if (pathname === '/live') return null;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">

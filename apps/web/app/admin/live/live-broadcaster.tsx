@@ -44,6 +44,7 @@ export function LiveBroadcaster() {
   const micRef        = useRef<LocalAudioTrack | null>(null);
   const audioCtxRef   = useRef<AudioContext | null>(null);
   const chatEndRef    = useRef<HTMLDivElement>(null);
+  const fileInputRef  = useRef<HTMLInputElement>(null);
 
   const [status,     setStatus]     = useState<Status>('idle');
   const [srcMode,    setSrcMode]    = useState<SrcMode>('camera');
@@ -56,8 +57,14 @@ export function LiveBroadcaster() {
   const [micOn,      setMicOn]      = useState(true);
   const [error,      setError]      = useState('');
   const [msgs,       setMsgs]       = useState<ChatMsg[]>([]);
-  const [chatInput,  setChatInput]  = useState('');
-  const [showGpu,    setShowGpu]    = useState(false);
+  const [chatInput,    setChatInput]    = useState('');
+  const [showShare,    setShowShare]    = useState(false);
+  const [shareTab,     setShareTab]     = useState<'link' | 'file'>('link');
+  const [linkUrl,      setLinkUrl]      = useState('');
+  const [linkLabel,    setLinkLabel]    = useState('');
+  const [fileUploading,setFileUploading]= useState(false);
+  const [uploadedFile, setUploadedFile] = useState<{ url: string; filename: string; size: number } | null>(null);
+  const [showGpu,      setShowGpu]      = useState(false);
   const [trackInfo,  setTrackInfo]  = useState<string>('');
   const [obsCreds,   setObsCreds]   = useState<{ rtmpUrl: string; streamKey: string } | null>(null);
 
@@ -373,6 +380,44 @@ export function LiveBroadcaster() {
     setChatInput('');
   }
 
+  async function sendLink() {
+    const url = linkUrl.trim(); if (!url || !roomRef.current) return;
+    const label = linkLabel.trim() || url;
+    const payload = enc.encode(JSON.stringify({ type: 'link', url, label, name: 'Admin 🎙', ts: Date.now(), broadcaster: true }));
+    await roomRef.current.localParticipant.publishData(payload, { reliable: true });
+    setMsgs(p => [...p.slice(-199), { id: crypto.randomUUID(), name: 'Admin 🎙', text: `🔗 ${label}`, ts: Date.now(), broadcaster: true }]);
+    setLinkUrl(''); setLinkLabel(''); setShowShare(false);
+  }
+
+  async function uploadLiveFile(file: File) {
+    setFileUploading(true); setUploadedFile(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const res = await fetch('/api/livekit/share', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setUploadedFile(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al subir archivo');
+    } finally {
+      setFileUploading(false);
+    }
+  }
+
+  async function sendSharedFile() {
+    if (!uploadedFile || !roomRef.current) return;
+    const payload = enc.encode(JSON.stringify({ type: 'file', url: uploadedFile.url, filename: uploadedFile.filename, size: uploadedFile.size, name: 'Admin 🎙', ts: Date.now(), broadcaster: true }));
+    await roomRef.current.localParticipant.publishData(payload, { reliable: true });
+    setMsgs(p => [...p.slice(-199), { id: crypto.randomUUID(), name: 'Admin 🎙', text: `📁 ${uploadedFile.filename}`, ts: Date.now(), broadcaster: true }]);
+    setUploadedFile(null); setShowShare(false);
+  }
+
+  function fmtBytes(n: number) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1048576) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / 1048576).toFixed(1)} MB`;
+  }
+
   useEffect(() => () => { stopLive(); }, []);
 
   return (
@@ -529,6 +574,104 @@ export function LiveBroadcaster() {
               style={{ background: 'var(--color-accent)' }}>
               Enviar
             </button>
+          </div>
+
+          {/* ── Panel compartir enlace / archivo ── */}
+          <div className="border-t" style={{ borderColor: 'var(--color-border)' }}>
+            <button
+              onClick={() => setShowShare(s => !s)}
+              className="w-full flex items-center gap-2 px-4 py-2 text-xs font-medium transition-colors hover:opacity-80"
+              style={{ color: showShare ? 'var(--color-accent)' : 'var(--color-muted)' }}
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M16.5 6v.75c0 .69.56 1.25 1.25 1.25h.75v9H5.5V8H10V6H5.5C4.67 6 4 6.67 4 7.5v9C4 17.33 4.67 18 5.5 18h13c.83 0 1.5-.67 1.5-1.5v-9c0-.83-.67-1.5-1.5-1.5H16.5zm-5-.5l3.5-3.5 3.5 3.5-1.06 1.06-1.69-1.69V14h-1.5V5.37l-1.69 1.69L11.5 5.5z"/></svg>
+              Compartir enlace o archivo con los viewers
+              <span className="ml-auto text-[10px]">{showShare ? '▲' : '▼'}</span>
+            </button>
+
+            {showShare && (
+              <div className="px-4 pb-4 space-y-3">
+                {/* Tabs */}
+                <div className="flex gap-1 rounded-lg p-0.5" style={{ background: 'var(--color-bg)' }}>
+                  {(['link', 'file'] as const).map(t => (
+                    <button key={t} onClick={() => setShareTab(t)}
+                      className="flex-1 rounded-md py-1.5 text-xs font-bold transition-all"
+                      style={shareTab === t
+                        ? { background: 'var(--color-accent)', color: '#fff' }
+                        : { color: 'var(--color-muted)' }}>
+                      {t === 'link' ? '🔗 Enlace' : '📁 Archivo'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab: Enlace */}
+                {shareTab === 'link' && (
+                  <div className="space-y-2">
+                    <input
+                      value={linkUrl} onChange={e => setLinkUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full rounded-xl border px-3 py-2 text-xs"
+                      style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
+                      onKeyDown={e => { if (e.key === 'Enter') sendLink(); }}
+                    />
+                    <input
+                      value={linkLabel} onChange={e => setLinkLabel(e.target.value)}
+                      placeholder="Texto del enlace (opcional)"
+                      className="w-full rounded-xl border px-3 py-2 text-xs"
+                      style={{ borderColor: 'var(--color-border)', background: 'var(--color-input)' }}
+                    />
+                    <button onClick={sendLink} disabled={!linkUrl.trim()}
+                      className="w-full rounded-xl py-2 text-xs font-bold text-white disabled:opacity-40 transition-opacity hover:opacity-90"
+                      style={{ background: 'var(--color-accent)' }}>
+                      Compartir enlace
+                    </button>
+                  </div>
+                )}
+
+                {/* Tab: Archivo */}
+                {shareTab === 'file' && (
+                  <div className="space-y-2">
+                    <input ref={fileInputRef} type="file" className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadLiveFile(f); if (fileInputRef.current) fileInputRef.current.value = ''; }} />
+
+                    {!uploadedFile && !fileUploading && (
+                      <button onClick={() => fileInputRef.current?.click()}
+                        className="w-full rounded-xl border-2 border-dashed py-4 text-xs font-medium transition-colors hover:opacity-80"
+                        style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted)' }}>
+                        Seleccionar archivo para compartir
+                      </button>
+                    )}
+
+                    {fileUploading && (
+                      <div className="flex items-center gap-2 py-3 justify-center">
+                        <div className="w-4 h-4 border-2 border-[var(--color-accent)] border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs" style={{ color: 'var(--color-muted)' }}>Subiendo...</span>
+                      </div>
+                    )}
+
+                    {uploadedFile && !fileUploading && (
+                      <div className="space-y-2">
+                        <div className="rounded-xl p-2.5 text-xs" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                          <p className="font-bold truncate">📁 {uploadedFile.filename}</p>
+                          <p style={{ color: 'var(--color-muted)' }}>{fmtBytes(uploadedFile.size)}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={sendSharedFile}
+                            className="flex-1 rounded-xl py-2 text-xs font-bold text-white transition-opacity hover:opacity-90"
+                            style={{ background: 'var(--color-accent)' }}>
+                            Enviar a todos los viewers
+                          </button>
+                          <button onClick={() => setUploadedFile(null)}
+                            className="rounded-xl px-3 py-2 text-xs border transition-opacity hover:opacity-70"
+                            style={{ borderColor: 'var(--color-border)', color: 'var(--color-muted)' }}>
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
