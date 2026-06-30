@@ -5,16 +5,12 @@ import {
   IngressClient,
   IngressInput,
   IngressVideoOptions,
-  IngressVideoEncodingOptions,
+  IngressVideoEncodingPreset,
   IngressAudioOptions,
-  IngressAudioEncodingOptions,
-  AudioCodec,
+  IngressAudioEncodingPreset,
 } from 'livekit-server-sdk';
 
 const ROOM = 'academia-live';
-
-// VideoQuality values (livekit.VideoQuality proto enum): HIGH=2, MEDIUM=1, LOW=0
-const VQ = { HIGH: 2, MEDIUM: 1, LOW: 0 } as const;
 
 function lkHttpUrl() {
   return process.env.LIVEKIT_URL!.replace(/^wss?:\/\//, 'https://');
@@ -33,33 +29,23 @@ export async function POST() {
       process.env.LIVEKIT_API_SECRET!,
     );
 
+    // Preset oficial: 1080p60 con 3 capas simulcast (1080p / 540p / 270p)
+    // LiveKit Cloud no admite resoluciones >1080p en el transcoding RTMP
     const ingress = await client.createIngress(IngressInput.RTMP_INPUT, {
       name:                'obs-stream',
       roomName:            ROOM,
       participantIdentity: 'obs-broadcaster',
       participantName:     'OBS',
-      // Transcodificación H264 High con 3 capas: 1440p / 1080p / 720p
       video: new IngressVideoOptions({
         encodingOptions: {
-          case: 'options',
-          value: new IngressVideoEncodingOptions({
-            frameRate: 60,
-            layers: [
-              { quality: VQ.HIGH,   width: 2560, height: 1440, bitrate: 30_000_000 },
-              { quality: VQ.MEDIUM, width: 1920, height: 1080, bitrate: 15_000_000 },
-              { quality: VQ.LOW,    width: 1280, height:  720, bitrate:  5_000_000 },
-            ],
-          }),
+          case:  'preset',
+          value: IngressVideoEncodingPreset.H264_1080P_30FPS_3_LAYERS,
         },
       }),
       audio: new IngressAudioOptions({
         encodingOptions: {
-          case: 'options',
-          value: new IngressAudioEncodingOptions({
-            audioCodec: AudioCodec.OPUS,
-            bitrate:    256_000,
-            channels:   2,
-          }),
+          case:  'preset',
+          value: IngressAudioEncodingPreset.OPUS_STEREO_96KBPS,
         },
       }),
     });

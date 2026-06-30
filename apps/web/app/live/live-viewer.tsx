@@ -12,17 +12,17 @@ import {
 } from 'livekit-client';
 
 type Status = 'connecting' | 'waiting' | 'watching' | 'ended';
-type Quality = '1440p' | '1080p' | '720p';
+type Quality = 'high' | 'medium' | 'low';
 
 const QUALITY_MAP: Record<Quality, VideoQuality> = {
-  '1440p': VideoQuality.HIGH,
-  '1080p': VideoQuality.MEDIUM,
-  '720p':  VideoQuality.LOW,
+  high:   VideoQuality.HIGH,
+  medium: VideoQuality.MEDIUM,
+  low:    VideoQuality.LOW,
 };
 const QUALITY_LABELS: Record<Quality, string> = {
-  '1440p': '1440p',
-  '1080p': '1080p',
-  '720p':  '720p',
+  high:   'Alta',
+  medium: 'Media',
+  low:    'Baja',
 };
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }
@@ -42,7 +42,7 @@ export function LiveViewer() {
   const [paused,      setPaused]      = useState(false);
   const [muted,       setMuted]       = useState(false);
   const [volume,      setVolume]      = useState(1);
-  const [quality,     setQuality]     = useState<Quality>('1440p');
+  const [quality,     setQuality]     = useState<Quality>('high');
   const [showQuality, setShowQuality] = useState(false);
   const [fullscreen,  setFullscreen]  = useState(false);
   const [showCtrl,    setShowCtrl]    = useState(true);
