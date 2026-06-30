@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
   // Notificación Telegram
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_NOTIFY_CHAT_ID;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://academia-jrubio-web-nnl3.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://academia-jrubio-web.vercel.app';
   if (token && chatId) {
     fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
