@@ -38,14 +38,17 @@ function fmtBytes(n: number) {
   return `${(n / 1048576).toFixed(1)} MB`;
 }
 
+/* Detectar si el dispositivo es táctil (móvil/tablet).
+   En estos dispositivos usamos fake-fullscreen (CSS position:fixed) en vez
+   de la Fullscreen API nativa, porque en iOS el player nativo congela
+   MediaStreams al rotar la orientación. */
+function isTouchDevice() {
+  return typeof window !== 'undefined' &&
+    ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+}
+
 const enc = new TextEncoder();
 const dec = new TextDecoder();
-
-/* Detectar iOS para usar webkitEnterFullscreen en vez de requestFullscreen */
-function isIOS() {
-  return /iP(hone|ad|od)/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
 
 export function LiveViewer() {
   const videoRef     = useRef<HTMLVideoElement>(null);
@@ -54,6 +57,9 @@ export function LiveViewer() {
   const pubRef       = useRef<RemoteTrackPublication | null>(null);
   const hideTimer    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const chatEndRef   = useRef<HTMLDivElement>(null);
+
+  /* Ref paralelo al estado fullscreen para usarlo en callbacks sin deps */
+  const fullscreenRef = useRef(false);
 
   const [status,      setStatus]      = useState<Status>('connecting');
   const [paused,      setPaused]      = useState(false);
@@ -69,39 +75,44 @@ export function LiveViewer() {
   const [nameSet,     setNameSet]     = useState(false);
   const [rxRes,       setRxRes]       = useState<string>('');
 
-  /* ── auto-hide controles (solo en fullscreen) ── */
-  const isFullscreen = useCallback(() =>
-    Boolean(document.fullscreenElement) ||
-    Boolean((document as never as { webkitFullscreenElement: Element | null }).webkitFullscreenElement) ||
-    Boolean((videoRef.current as never as { webkitDisplayingFullscreen?: boolean })?.webkitDisplayingFullscreen),
-  []);
+  /* Sincronizar ref con state */
+  useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
 
+  /* Limpiar overflow al desmontar */
+  useEffect(() => () => { document.body.style.overflow = ''; }, []);
+
+  /* ── auto-hide controles (solo en fullscreen) ── */
   const resetHide = useCallback(() => {
     setShowCtrl(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (isFullscreen()) {
+    if (fullscreenRef.current) {
       hideTimer.current = setTimeout(() => setShowCtrl(false), 3500);
     }
-  }, [isFullscreen]);
+  }, []);
 
   useEffect(() => {
     return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, []);
 
+  /* Auto-hide se activa/desactiva cuando fullscreen cambia */
+  useEffect(() => {
+    if (fullscreen) {
+      resetHide();
+    } else {
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      setShowCtrl(true);
+    }
+  }, [fullscreen, resetHide]);
+
   /* ── scroll chat al final ── */
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
-  /* ── fullscreen listener (estándar + webkit) ── */
+  /* ── Fullscreen real (desktop) via Fullscreen API ── */
   useEffect(() => {
     const onFsChange = () => {
-      const isFull = isFullscreen();
+      const isFull = Boolean(document.fullscreenElement) ||
+        Boolean((document as never as { webkitFullscreenElement: Element | null }).webkitFullscreenElement);
       setFullscreen(isFull);
-      if (!isFull) {
-        if (hideTimer.current) clearTimeout(hideTimer.current);
-        setShowCtrl(true);
-      } else {
-        resetHide();
-      }
     };
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
@@ -109,21 +120,7 @@ export function LiveViewer() {
       document.removeEventListener('fullscreenchange', onFsChange);
       document.removeEventListener('webkitfullscreenchange', onFsChange);
     };
-  }, [resetHide, isFullscreen]);
-
-  /* ── iOS webkit fullscreen events en el <video> ── */
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onBegin = () => { setFullscreen(true); resetHide(); };
-    const onEnd   = () => { setFullscreen(false); setShowCtrl(true); if (hideTimer.current) clearTimeout(hideTimer.current); };
-    v.addEventListener('webkitbeginfullscreen', onBegin);
-    v.addEventListener('webkitendfullscreen',   onEnd);
-    return () => {
-      v.removeEventListener('webkitbeginfullscreen', onBegin);
-      v.removeEventListener('webkitendfullscreen',   onEnd);
-    };
-  }, [resetHide]);
+  }, []);
 
   /* ── LiveKit conexión ── */
   useEffect(() => {
@@ -152,7 +149,9 @@ export function LiveViewer() {
     });
 
     room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-      if (track.kind === Track.Kind.Video) { track.detach(); pubRef.current = null; setStatus('waiting'); setRxRes(''); }
+      if (track.kind === Track.Kind.Video) {
+        track.detach(); pubRef.current = null; setStatus('waiting'); setRxRes('');
+      }
     });
 
     room.on(RoomEvent.DataReceived, (payload: Uint8Array) => {
@@ -197,17 +196,20 @@ export function LiveViewer() {
     if (pubRef.current) pubRef.current.setVideoQuality(QUALITY_MAP[q]);
   }
 
-  /* ── fullscreen: iOS usa webkitEnterFullscreen en <video>, resto usa container ── */
+  /* ── Fullscreen toggle ──
+     En dispositivos táctiles usamos "fake fullscreen" (position:fixed via CSS)
+     para evitar que iOS congele el stream al rotar la orientación.
+     En escritorio usamos la Fullscreen API real. */
   const toggleFullscreen = useCallback(async () => {
-    const v = videoRef.current;
-    const c = containerRef.current;
-    // iOS Safari solo admite fullscreen en el elemento <video>
-    if (v && isIOS()) {
-      const vios = v as never as { webkitEnterFullscreen(): void; webkitExitFullscreen(): void; webkitDisplayingFullscreen: boolean };
-      if (vios.webkitDisplayingFullscreen) vios.webkitExitFullscreen();
-      else vios.webkitEnterFullscreen();
+    if (isTouchDevice()) {
+      setFullscreen(prev => {
+        const next = !prev;
+        document.body.style.overflow = next ? 'hidden' : '';
+        return next;
+      });
       return;
     }
+    const c = containerRef.current;
     if (!document.fullscreenElement) await c?.requestFullscreen().catch(() => null);
     else await document.exitFullscreen().catch(() => null);
   }, []);
@@ -269,11 +271,18 @@ export function LiveViewer() {
           )}
         </div>
 
-        {/* ── PLAYER ── */}
+        {/* ── PLAYER ──
+            En fake-fullscreen móvil: position:fixed inset-0 z-[9999]
+            En normal: w-full aspect-ratio:16/9
+            El <video> nunca sale del DOM, por eso no congela al rotar. */}
         <div
           ref={containerRef}
-          className="relative w-full rounded-xl sm:rounded-2xl overflow-hidden bg-black select-none"
-          style={{ aspectRatio: '16/9' }}
+          className={`relative overflow-hidden bg-black select-none ${
+            fullscreen
+              ? 'fixed inset-0 z-[9999] rounded-none'
+              : 'w-full rounded-xl sm:rounded-2xl'
+          }`}
+          style={fullscreen ? {} : { aspectRatio: '16/9' }}
           onMouseMove={resetHide}
           onTouchStart={resetHide}
         >
@@ -334,7 +343,7 @@ export function LiveViewer() {
                     }
                   </button>
 
-                  {/* Mute (siempre visible) */}
+                  {/* Mute */}
                   <button
                     onClick={e => { e.stopPropagation(); toggleMute(); }}
                     className="text-white hover:scale-110 transition-transform shrink-0 p-1"
@@ -373,7 +382,7 @@ export function LiveViewer() {
                            style={{ background: 'rgba(10,10,10,0.95)' }}>
                         {(Object.keys(QUALITY_LABELS) as Quality[]).map(q => (
                           <button key={q} onClick={() => changeQuality(q)}
-                            className={`block w-full text-left px-4 py-2.5 text-xs transition-colors ${quality === q ? 'text-white font-bold bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/8'}`}>
+                            className={`block w-full text-left px-4 py-2.5 text-xs transition-colors ${quality === q ? 'text-white font-bold bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'}`}>
                             {QUALITY_LABELS[q]} {quality === q && '✓'}
                           </button>
                         ))}
@@ -439,7 +448,6 @@ export function LiveViewer() {
             {msgs.map(m => (
               <div key={m.id}>
                 {m.msgType === 'link' || m.msgType === 'file' ? (
-                  /* Tarjeta de recurso compartido por el admin */
                   <div className="rounded-xl p-2.5 my-1" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-accent)', borderLeft: '3px solid var(--color-accent)' }}>
                     <p className="text-[10px] font-bold mb-1" style={{ color: 'var(--color-accent)' }}>
                       {m.msgType === 'link' ? '🔗 Enlace compartido' : '📁 Archivo compartido'} — {m.name}
