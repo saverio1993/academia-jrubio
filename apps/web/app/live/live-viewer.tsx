@@ -21,7 +21,7 @@ const QUALITY_MAP: Record<Quality, VideoQuality> = {
   low:    VideoQuality.LOW,
 };
 const QUALITY_LABELS: Record<Quality, string> = {
-  auto: 'Auto', high: '720p', medium: '480p', low: '240p',
+  auto: 'Auto', high: 'Alta', medium: 'Media', low: 'Baja',
 };
 
 interface ChatMsg { id: string; name: string; text: string; ts: number; broadcaster?: boolean }

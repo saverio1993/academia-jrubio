@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     room: ROOM,
     canPublish: role === 'broadcaster',
     canSubscribe: true,
-    canPublishData: false,
+    canPublishData: true,
   });
 
   return NextResponse.json({

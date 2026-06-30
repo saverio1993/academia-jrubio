@@ -8,7 +8,6 @@ import {
   LocalAudioTrack,
   AudioPresets,
   createLocalAudioTrack,
-  createLocalScreenTracks,
   type RemoteParticipant,
 } from 'livekit-client';
 
@@ -40,10 +39,12 @@ export function LiveBroadcaster() {
   const roomRef       = useRef<Room | null>(null);
   const videoTrackRef = useRef<LocalVideoTrack | null>(null);
   const micRef        = useRef<LocalAudioTrack | null>(null);
+  const audioCtxRef   = useRef<AudioContext | null>(null);
   const chatEndRef    = useRef<HTMLDivElement>(null);
 
   const [status,     setStatus]     = useState<Status>('idle');
   const [srcMode,    setSrcMode]    = useState<SrcMode>('camera');
+  const [audioSrc,   setAudioSrc]   = useState<'mic' | 'mix'>('mic');
   const [resolution, setResolution] = useState<Resolution>('720p');
   const [title,      setTitle]      = useState('');
   const [description,setDescription]= useState('');
@@ -54,6 +55,7 @@ export function LiveBroadcaster() {
   const [msgs,       setMsgs]       = useState<ChatMsg[]>([]);
   const [chatInput,  setChatInput]  = useState('');
   const [showGpu,    setShowGpu]    = useState(false);
+  const [trackInfo,  setTrackInfo]  = useState<string>('');
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
@@ -167,6 +169,10 @@ export function LiveBroadcaster() {
       const res = RES[resolution];
       let rawVideoTrack: MediaStreamTrack;
 
+      // ── Captura de pantalla con o sin audio del escritorio ──
+      let desktopAudioRaw: MediaStreamTrack | null = null;
+      const wantDesktopAudio = audioSrc === 'mix' && (srcMode === 'screen' || srcMode === 'both');
+
       if (srcMode === 'camera') {
         /* ── Solo cámara ── */
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -178,14 +184,16 @@ export function LiveBroadcaster() {
         if (previewRef.current) { previewRef.current.srcObject = stream; }
 
       } else if (srcMode === 'screen') {
-        /* ── Solo pantalla ── */
+        /* ── Solo pantalla (+ audio escritorio opcional) ── */
         const stream = await navigator.mediaDevices.getDisplayMedia({
           video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+          audio: wantDesktopAudio,
         });
         const screenTrack = stream.getVideoTracks()[0];
         if (!screenTrack) throw new Error('No se encontró pantalla');
         rawVideoTrack = screenTrack;
-        if (previewRef.current) { previewRef.current.srcObject = stream; }
+        desktopAudioRaw = stream.getAudioTracks()[0] ?? null;
+        if (previewRef.current) { previewRef.current.srcObject = new MediaStream([screenTrack]); }
         rawVideoTrack.addEventListener('ended', () => stopLive());
 
       } else {
@@ -193,13 +201,15 @@ export function LiveBroadcaster() {
         const [screenStream, camStream] = await Promise.all([
           navigator.mediaDevices.getDisplayMedia({
             video: { width: { ideal: res.w }, height: { ideal: res.h }, frameRate: { ideal: res.fps } },
+            audio: wantDesktopAudio,
           }),
           navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: 30 },
-          }).catch(() => null), // cámara opcional
+          }).catch(() => null),
         ]);
 
-        // Alimentar videos ocultos
+        desktopAudioRaw = screenStream.getAudioTracks()[0] ?? null;
+
         if (screenVidRef.current) {
           screenVidRef.current.srcObject = screenStream;
           await screenVidRef.current.play().catch(() => null);
@@ -209,7 +219,6 @@ export function LiveBroadcaster() {
           await camVidRef.current.play().catch(() => null);
         }
 
-        // Preview = canvas
         const compositeTrack = startComposite(resolution);
         if (!compositeTrack) throw new Error('Canvas no disponible');
         rawVideoTrack = compositeTrack;
@@ -220,17 +229,42 @@ export function LiveBroadcaster() {
         screenStream.getVideoTracks()[0]?.addEventListener('ended', () => stopLive());
       }
 
+      // Mostrar resolución real capturada
+      const settings = rawVideoTrack.getSettings();
+      setTrackInfo(`${settings.width ?? '?'}×${settings.height ?? '?'} @ ${settings.frameRate?.toFixed(0) ?? '?'}fps`);
+
       // Hint al encoder
       (rawVideoTrack as MediaStreamTrack & { contentHint: string }).contentHint =
         srcMode === 'screen' ? 'detail' : 'motion';
 
-      const lkVideoTrack = new LocalVideoTrack(rawVideoTrack, undefined, false);
+      const lkVideoTrack = new LocalVideoTrack(rawVideoTrack, undefined, true);
       videoTrackRef.current = lkVideoTrack;
 
-      // Audio
-      const audioTrack = await createLocalAudioTrack({
-        echoCancellation: true, noiseSuppression: true, autoGainControl: true,
-      });
+      // ── Audio: micrófono solo o mezcla con escritorio ──
+      const micRaw = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const micRawTrack = micRaw.getAudioTracks()[0];
+      if (!micRawTrack) throw new Error('No se encontró micrófono');
+
+      let audioTrack: LocalAudioTrack;
+
+      if (desktopAudioRaw) {
+        // Mezclar micrófono + audio escritorio con Web Audio API
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+        const micNode  = ctx.createMediaStreamSource(new MediaStream([micRawTrack]));
+        const deskNode = ctx.createMediaStreamSource(new MediaStream([desktopAudioRaw]));
+        const dest     = ctx.createMediaStreamDestination();
+        // Ganancia individual para no saturar
+        const micGain  = ctx.createGain(); micGain.gain.value  = 1.0;
+        const deskGain = ctx.createGain(); deskGain.gain.value = 0.85;
+        micNode.connect(micGain);   micGain.connect(dest);
+        deskNode.connect(deskGain); deskGain.connect(dest);
+        const mixedRaw = dest.stream.getAudioTracks()[0];
+        if (!mixedRaw) throw new Error('Error al mezclar audio');
+        audioTrack = new LocalAudioTrack(mixedRaw);
+      } else {
+        audioTrack = new LocalAudioTrack(micRawTrack);
+      }
       micRef.current = audioTrack;
 
       // Conectar y publicar
@@ -269,8 +303,10 @@ export function LiveBroadcaster() {
   async function stopLive() {
     if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
 
+    audioCtxRef.current?.close(); audioCtxRef.current = null;
     videoTrackRef.current?.mediaStreamTrack.stop();
     micRef.current?.mediaStreamTrack.stop();
+    setTrackInfo('');
 
     if (screenVidRef.current?.srcObject) {
       (screenVidRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
@@ -326,14 +362,19 @@ export function LiveBroadcaster() {
         )}
 
         {status === 'live' && (
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="absolute top-3 left-3 right-3 flex items-center justify-between flex-wrap gap-1">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold text-white bg-red-600">
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse" /> EN VIVO
               </span>
               <span className="rounded-full px-2 py-1 text-xs text-white bg-black/50 font-mono">
                 {formatTime(duration)}
               </span>
+              {trackInfo && (
+                <span className="rounded-full px-2 py-1 text-xs text-white bg-black/50 font-mono">
+                  {trackInfo}
+                </span>
+              )}
             </div>
             <span className="rounded-full px-3 py-1 text-xs font-medium text-white bg-black/50">
               {viewers} {viewers === 1 ? 'espectador' : 'espectadores'}
@@ -448,6 +489,32 @@ export function LiveBroadcaster() {
               {srcMode === 'screen' && 'Comparte la pantalla de tu PC. No necesitas cámara.'}
               {srcMode === 'both'   && 'Pantalla completa con tu cámara en la esquina inferior derecha.'}
             </p>
+          </div>
+
+          {/* Fuente de audio */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Fuente de audio</label>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { id: 'mic',  icon: '🎤', label: 'Solo micrófono',         desc: 'Solo tu voz' },
+                { id: 'mix',  icon: '🔊', label: 'Micro + audio escritorio', desc: srcMode === 'camera' ? 'No disponible en modo cámara' : 'Marca "Compartir audio" en el diálogo del navegador' },
+              ] as { id: 'mic'|'mix'; icon: string; label: string; desc: string }[]).map(opt => {
+                const disabled = opt.id === 'mix' && srcMode === 'camera';
+                return (
+                  <button key={opt.id}
+                    onClick={() => !disabled && setAudioSrc(opt.id)}
+                    disabled={disabled}
+                    className={`flex flex-col items-start gap-1 rounded-xl py-3 px-3 text-xs font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                      audioSrc === opt.id && !disabled
+                        ? 'border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
+                        : 'border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-accent)]/50'
+                    }`}>
+                    <span className="text-lg">{opt.icon} <span className="font-bold">{opt.label}</span></span>
+                    <span className="text-[10px] leading-tight">{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           {/* Resolución */}
