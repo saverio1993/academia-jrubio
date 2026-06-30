@@ -3,6 +3,7 @@ import './globals.css';
 import { NewFileTicker } from '@/components/new-file-ticker';
 import { PingTracker } from '@/components/ping-tracker';
 import { SupportButton } from '@/components/support-button';
+import { LiveNotification } from '@/components/live-notification';
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <PingTracker />
         {children}
         <SupportButton />
+        <LiveNotification />
       </body>
     </html>
   );
