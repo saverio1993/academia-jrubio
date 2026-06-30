@@ -53,6 +53,7 @@ export function LiveBroadcaster() {
   const [error,      setError]      = useState('');
   const [msgs,       setMsgs]       = useState<ChatMsg[]>([]);
   const [chatInput,  setChatInput]  = useState('');
+  const [showGpu,    setShowGpu]    = useState(false);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [msgs]);
 
@@ -79,12 +80,43 @@ export function LiveBroadcaster() {
     const { w, h, fps } = RES[res];
     canvas.width  = w;
     canvas.height = h;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { alpha: false })!;
+    // Sin suavizado — más rápido para video
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'low';
 
-    function draw() {
-      ctx.clearRect(0, 0, w, h);
+    const interval = 1000 / fps;
+    let lastFrame  = 0;
 
-      // Fondo negro si el video no cargó aún
+    // Coordenadas PiP precalculadas (evita recalcular cada frame)
+    const pw = Math.round(w * 0.26);
+    const ph = Math.round(pw * 9 / 16);
+    const px = w - pw - 16;
+    const py = h - ph - 16;
+    const r  = 6;
+
+    function pipPath() {
+      ctx.beginPath();
+      ctx.moveTo(px + r, py);
+      ctx.lineTo(px + pw - r, py);
+      ctx.arcTo(px + pw, py, px + pw, py + r, r);
+      ctx.lineTo(px + pw, py + ph - r);
+      ctx.arcTo(px + pw, py + ph, px + pw - r, py + ph, r);
+      ctx.lineTo(px + r, py + ph);
+      ctx.arcTo(px, py + ph, px, py + ph - r, r);
+      ctx.lineTo(px, py + r);
+      ctx.arcTo(px, py, px + r, py, r);
+      ctx.closePath();
+    }
+
+    function draw(timestamp: number) {
+      // Throttle real al fps objetivo (evita trabajo doble en pantallas de 60/120Hz)
+      if (timestamp - lastFrame < interval) {
+        rafRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      lastFrame = timestamp;
+
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const sv = scVid!;
       if (sv.readyState >= 2) {
@@ -94,53 +126,24 @@ export function LiveBroadcaster() {
         ctx.fillRect(0, 0, w, h);
       }
 
-      // Cámara PiP (esquina inferior derecha)
+      // Cámara PiP (esquina inferior derecha) — sin shadowBlur (muy costoso)
       if (camVid && camVid.readyState >= 2) {
-        const pw = Math.round(w * 0.26);
-        const ph = Math.round(pw * 9 / 16);
-        const px = w - pw - 16;
-        const py = h - ph - 16;
-        const r  = 8;
-
         ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.6)';
-        ctx.shadowBlur  = 12;
-        ctx.beginPath();
-        ctx.moveTo(px + r, py);
-        ctx.lineTo(px + pw - r, py);
-        ctx.arcTo(px + pw, py, px + pw, py + r, r);
-        ctx.lineTo(px + pw, py + ph - r);
-        ctx.arcTo(px + pw, py + ph, px + pw - r, py + ph, r);
-        ctx.lineTo(px + r, py + ph);
-        ctx.arcTo(px, py + ph, px, py + ph - r, r);
-        ctx.lineTo(px, py + r);
-        ctx.arcTo(px, py, px + r, py, r);
-        ctx.closePath();
+        pipPath();
         ctx.clip();
         ctx.drawImage(camVid, px, py, pw, ph);
         ctx.restore();
 
-        // Borde blanco
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+        // Borde delgado sin sombra
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
         ctx.lineWidth   = 2;
-        ctx.beginPath();
-        ctx.moveTo(px + r, py);
-        ctx.lineTo(px + pw - r, py);
-        ctx.arcTo(px + pw, py, px + pw, py + r, r);
-        ctx.lineTo(px + pw, py + ph - r);
-        ctx.arcTo(px + pw, py + ph, px + pw - r, py + ph, r);
-        ctx.lineTo(px + r, py + ph);
-        ctx.arcTo(px, py + ph, px, py + ph - r, r);
-        ctx.lineTo(px, py + r);
-        ctx.arcTo(px, py, px + r, py, r);
-        ctx.closePath();
+        pipPath();
         ctx.stroke();
       }
 
       rafRef.current = requestAnimationFrame(draw);
     }
 
-    // Lanzar al fps correcto
     rafRef.current = requestAnimationFrame(draw);
 
     // Devolver el track del canvas
@@ -462,6 +465,61 @@ export function LiveBroadcaster() {
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Panel GPU */}
+          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--color-border)' }}>
+            <button onClick={() => setShowGpu(g => !g)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium hover:opacity-80 transition-opacity"
+              style={{ background: 'var(--color-card)' }}>
+              <span className="flex items-center gap-2">
+                <span>⚡</span>
+                <span>Forzar GPU dedicada (reduce lag)</span>
+              </span>
+              <span className="text-xs" style={{ color: 'var(--color-muted)' }}>{showGpu ? '▲' : '▼'}</span>
+            </button>
+
+            {showGpu && (
+              <div className="px-4 pb-4 pt-1 space-y-4 text-sm" style={{ background: 'var(--color-card)' }}>
+                <p className="text-xs" style={{ color: 'var(--color-muted)' }}>
+                  El navegador elige qué GPU usar. Para forzar tu GPU NVIDIA/AMD dedica, sigue uno de estos métodos:
+                </p>
+
+                {/* Método 1: Windows */}
+                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                  <p className="font-bold text-xs uppercase tracking-wide" style={{ color: 'var(--color-accent)' }}>Windows 11 / 10</p>
+                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                    <li>1. Click derecho en el escritorio → <strong>Configuración de pantalla</strong></li>
+                    <li>2. Desplázate hasta <strong>Gráficos</strong> (o busca "Configuración de gráficos")</li>
+                    <li>3. Haz clic en <strong>Examinar</strong> y añade <code>chrome.exe</code> o <code>msedge.exe</code></li>
+                    <li>4. Selecciona la app → <strong>Opciones</strong> → elige <strong>Alto rendimiento</strong></li>
+                    <li>5. <strong>Guarda y reinicia el navegador</strong></li>
+                  </ol>
+                </div>
+
+                {/* Método 2: NVIDIA */}
+                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                  <p className="font-bold text-xs uppercase tracking-wide text-green-500">Panel de control NVIDIA</p>
+                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                    <li>1. Click derecho en escritorio → <strong>Panel de control NVIDIA</strong></li>
+                    <li>2. Ve a <strong>Administrar configuración 3D</strong> → <strong>Configuración de programa</strong></li>
+                    <li>3. Añade <code>chrome.exe</code> o <code>msedge.exe</code></li>
+                    <li>4. Procesador preferido → <strong>Procesador NVIDIA de alto rendimiento</strong></li>
+                    <li>5. Aplica y reinicia el navegador</li>
+                  </ol>
+                </div>
+
+                {/* Verificar en Chrome */}
+                <div className="rounded-xl p-3 space-y-1.5" style={{ background: 'var(--color-bg)', border: '1px solid var(--color-border)' }}>
+                  <p className="font-bold text-xs uppercase tracking-wide text-blue-400">Verificar en Chrome/Edge</p>
+                  <ol className="space-y-1 text-xs" style={{ color: 'var(--color-muted)' }}>
+                    <li>1. Abre una pestaña nueva y escribe <code>chrome://gpu</code></li>
+                    <li>2. Busca <strong>"Video Encode"</strong> — debe decir <strong>Hardware accelerated</strong></li>
+                    <li>3. Si dice "Software only", ve a Configuración → Sistema → activa aceleración de hardware</li>
+                  </ol>
+                </div>
+              </div>
+            )}
           </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
