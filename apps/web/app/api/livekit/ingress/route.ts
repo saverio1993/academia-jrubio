@@ -8,7 +8,6 @@ import {
   IngressVideoEncodingOptions,
   IngressAudioOptions,
   IngressAudioEncodingOptions,
-  VideoCodec,
   AudioCodec,
 } from 'livekit-server-sdk';
 
@@ -44,8 +43,7 @@ export async function POST() {
         encodingOptions: {
           case: 'options',
           value: new IngressVideoEncodingOptions({
-            videoCodec: VideoCodec.H264_HIGH,
-            frameRate:  60,
+            frameRate: 60,
             layers: [
               { quality: VQ.HIGH,   width: 2560, height: 1440, bitrate: 30_000_000 },
               { quality: VQ.MEDIUM, width: 1920, height: 1080, bitrate: 15_000_000 },
