@@ -171,9 +171,12 @@ export function LiveBroadcaster() {
 
       /* ── Modo OBS: solo crear el ingress RTMP, no capturar cámara ── */
       if (srcMode === 'obs') {
-        const data = await fetch('/api/livekit/ingress', { method: 'POST' }).then(r => r.json());
-        if (data.error) throw new Error(data.error);
-        setObsCreds({ rtmpUrl: data.rtmpUrl, streamKey: data.streamKey });
+        const res2 = await fetch('/api/livekit/ingress', { method: 'POST' });
+        const text = await res2.text();
+        let data: Record<string, unknown>;
+        try { data = JSON.parse(text); } catch { throw new Error(`Ingress error (${res2.status}): ${text.slice(0, 200)}`); }
+        if (data.error) throw new Error(String(data.error));
+        setObsCreds({ rtmpUrl: String(data.rtmpUrl), streamKey: String(data.streamKey) });
         setStatus('live');
         setDuration(0);
         return;
