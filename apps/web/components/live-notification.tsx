@@ -33,7 +33,7 @@ export function LiveNotification() {
     }
 
     check();
-    const id = setInterval(check, 20_000);
+    const id = setInterval(check, 60_000);
     return () => clearInterval(id);
   }, [onLivePage]);
 

@@ -18,17 +18,20 @@ export default async function ArchivosPage() {
   const isAdmin = role === 'ADMIN' || role === 'MODERATOR';
   const hasSub  = isAdmin || await hasActiveSubscription(userId);
 
-  const favIds = (await prisma.favorite.findMany({ where: { userId }, select: { fileItemId: true } }))
-    .map(f => f.fileItemId);
-
-  const [files, brandCount, categoryCount] = await Promise.all([
+  const [files, favIds] = await Promise.all([
     prisma.fileItem.findMany({
+      select: {
+        id: true, title: true, brand: true, model: true, category: true, subcategory: true,
+        storageKey: true, sizeBytes: true, isPremium: true, downloadsCount: true, createdAt: true,
+      },
       orderBy: [{ brand: 'asc' }, { subcategory: 'asc' }, { model: 'asc' }, { title: 'asc' }],
       take: 1500,
     }),
-    prisma.fileItem.findMany({ select: { brand: true }, distinct: ['brand'] }).then(r => r.length),
-    prisma.fileItem.findMany({ select: { category: true }, distinct: ['category'] }).then(r => r.length),
+    prisma.favorite.findMany({ where: { userId }, select: { fileItemId: true } }).then(r => r.map(f => f.fileItemId)),
   ]);
+
+  const brandCount    = new Set(files.map(f => f.brand)).size;
+  const categoryCount = new Set(files.map(f => f.category)).size;
 
   return (
     <>
