@@ -43,7 +43,7 @@ const GROUPS: NavGroup[] = [
   {
     label: 'Herramientas',
     items: [
-      { href: '/api/admin/video-tool-token', label: 'Descargador de Videos ↗', external: true },
+      { href: '/admin/herramientas', label: 'Descargador de Videos' },
     ],
   },
   {
