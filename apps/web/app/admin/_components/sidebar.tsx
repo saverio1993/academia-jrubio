@@ -3,7 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const GROUPS = [
+type NavItem = { href: string; label: string; exact?: boolean; external?: boolean };
+type NavGroup = { label: string | null; items: NavItem[] };
+
+const GROUPS: NavGroup[] = [
   {
     label: null,
     items: [
@@ -35,6 +38,12 @@ const GROUPS = [
       { href: '/admin/links',  label: 'Links únicos' },
       { href: '/admin/ia',     label: 'Asistente IA' },
       { href: '/admin/bot',    label: 'Bot Telegram' },
+    ],
+  },
+  {
+    label: 'Herramientas',
+    items: [
+      { href: '/api/admin/video-tool-token', label: 'Descargador de Videos ↗', external: true },
     ],
   },
   {
@@ -83,14 +92,21 @@ export function Sidebar() {
               gi > 0 && <div className="h-px mb-2" style={{ background: 'var(--color-border)' }} />
             )}
             <div className="flex flex-col gap-0.5">
-              {group.items.map((l) => {
-                const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
-                return (
-                  <Link key={l.href} href={l.href} className={linkClass(active)}>
+              {group.items.map((l) =>
+                l.external ? (
+                  <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className={linkClass(false)}>
+                    {l.label}
+                  </a>
+                ) : (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    className={linkClass(l.exact ? pathname === l.href : pathname.startsWith(l.href))}
+                  >
                     {l.label}
                   </Link>
-                );
-              })}
+                ),
+              )}
             </div>
           </div>
         ))}
@@ -104,14 +120,21 @@ export function Sidebar() {
               <span className="h-4 w-px mx-1 shrink-0"
                     style={{ background: 'var(--color-border)' }} />
             )}
-            {group.items.map((l) => {
-              const active = l.exact ? pathname === l.href : pathname.startsWith(l.href);
-              return (
-                <Link key={l.href} href={l.href} className={linkClass(active)}>
+            {group.items.map((l) =>
+              l.external ? (
+                <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" className={linkClass(false)}>
+                  {l.label}
+                </a>
+              ) : (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className={linkClass(l.exact ? pathname === l.href : pathname.startsWith(l.href))}
+                >
                   {l.label}
                 </Link>
-              );
-            })}
+              ),
+            )}
           </div>
         ))}
       </nav>
