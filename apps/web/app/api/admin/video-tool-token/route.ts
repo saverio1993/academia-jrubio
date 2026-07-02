@@ -29,6 +29,7 @@ export async function GET() {
   }
 
   const token = signToken({ sub: session.user.id, role }, secret, 60);
-  const redirectUrl = `${toolUrl.replace(/\/$/, '')}/?token=${token}`;
+  const baseUrl = /^https?:\/\//i.test(toolUrl) ? toolUrl : `https://${toolUrl}`;
+  const redirectUrl = `${baseUrl.replace(/\/$/, '')}/?token=${token}`;
   return NextResponse.redirect(redirectUrl);
 }

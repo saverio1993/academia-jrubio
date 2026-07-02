@@ -4,6 +4,10 @@ import { CATEGORIES } from './comunidad/categories';
 
 const APP_URL = (process.env.APP_URL ?? 'https://academia-jrubio-web.vercel.app').replace(/\/$/, '');
 
+// El sitemap lee posts de la BD: debe resolverse en cada petición, no
+// prerenderizarse en build (donde puede no existir DATABASE_URL).
+export const dynamic = 'force-dynamic';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const posts = await prisma.post.findMany({
     where: { status: { in: ['PUBLISHED', 'CLOSED'] } },
